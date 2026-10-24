@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookstore POS Lite</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2230; --mute:#677086; --line:#e2e5ec; --pri:#1b5e8c; --bad:#b3261e; --ok:#1f7a3d; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --card:#1b1f27; --ink:#e8eaf0; --mute:#9aa2b5; --line:#2b313d; --pri:#6db3e6; --bad:#ff8a80; --ok:#6fd48f; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; gap:12px; align-items:center; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  nav { display:flex; gap:6px; padding:10px 16px 0; flex-wrap:wrap; }
+  nav button { background:none; border:1px solid var(--line); color:var(--ink); padding:8px 14px; border-radius:10px; cursor:pointer; }
+  nav button.on { background:var(--pri); color:#fff; border-color:var(--pri); }
+  main { padding:16px; max-width:1100px; margin:0 auto; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  input, select, button.btn { font:inherit; padding:9px 11px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+  input { width:100%; }
+  button.btn { background:var(--pri); color:#fff; border:0; cursor:pointer; }
+  button.btn.alt { background:var(--bg); color:var(--ink); border:1px solid var(--line); }
+  button.btn:disabled { opacity:.5; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--line); }
+  td.r, th.r { text-align:right; }
+  .mute { color:var(--mute); } .bad { color:var(--bad); } .ok { color:var(--ok); }
+  .big { font-size:22px; font-weight:700; }
+  .hidden { display:none !important; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:10px; opacity:0; transition:.2s; pointer-events:none; max-width:90vw; }
+  #toast.show { opacity:1; }
+  video { width:100%; border-radius:10px; background:#000; max-height:220px; }
+  #login { max-width:360px; margin:12vh auto; }
+</style>
+</head>
+<body>
+
+<div id="login" class="card hidden">
+  <h2>Bookstore POS Lite — sign in</h2>
+  <div class="row"><input id="email" type="email" placeholder="Email" autocomplete="username"></div>
+  <div class="row"><input id="password" type="password" placeholder="Password" autocomplete="current-password"></div>
+  <div class="row"><button class="btn" id="loginBtn" style="width:100%">Sign in</button></div>
+  <div id="loginErr" class="bad"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1>Bookstore POS Lite</h1>
+    <span id="who" class="mute"></span>
+    <button class="btn alt" id="logout">Sign out</button>
+  </header>
+  <nav id="tabs">
+    <button data-t="sell" class="on">Sell</button>
+    <button data-t="products">Products</button>
+    <button data-t="receipts">Receipts</button>
+    <button data-t="logs">Stock log</button>
+  </nav>
+
+  <main>
+    <!-- SELL -->
+    <section id="t-sell">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h2>Scan / type barcode</h2>
+            <div class="row"><input id="code" placeholder="Barcode, then Enter" autofocus></div>
+            <div class="row">
+              <label><input type="radio" name="mode" value="check" checked style="width:auto"> Price check (cart untouched)</label>
+              <label><input type="radio" name="mode" value="add" style="width:auto"> Add to cart</label>
+            </div>
+            <div class="row"><button class="btn alt" id="camBtn">Use camera</button></div>
+            <video id="cam" class="hidden" playsinline muted></video>
+          </div>
+          <div class="card" id="checkCard">
+            <h2>Price check</h2>
+            <div class="mute">Scan an item to see its price and stock.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Cart</h2>
+          <div id="cart"></div>
+          <div class="row" style="margin-top:10px">
+            <span class="big" id="total">0.00</span>
+            <span style="flex:1"></span>
+            <select id="pay"><option value="cash">Cash</option><option value="card">Card</option></select>
+            <button class="btn" id="payBtn" disabled>Pay</button>
+            <button class="btn alt" id="clearBtn">Clear</button>
+          </div>
+          <div id="receipt"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUCTS -->
+    <section id="t-products" class="hidden">
+      <div class="card hidden" id="addCard">
+        <h2>Add product (admin)</h2>
+        <div class="row">
+          <input id="pName" placeholder="Name" style="flex:2">
+          <input id="pBarcode" placeholder="Barcode" style="flex:1">
+        </div>
+        <div class="row">
+          <input id="pBuy" type="number" step="0.01" placeholder="Purchase price">
+          <input id="pSell" type="number" step="0.01" placeholder="Selling price">
+          <input id="pStock" type="number" placeholder="Initial stock">
+          <button class="btn" id="addProd">Add</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row"><input id="pSearch" placeholder="Filter by name or barcode"></div>
+        <div id="prodList"></div>
+      </div>
+    </section>
+
+    <!-- RECEIPTS -->
+    <section id="t-receipts" class="hidden">
+      <div class="card">
+        <div class="row"><input id="rDate" type="date" style="width:auto"><button class="btn alt" id="rLoad">Load</button><span id="rSum" class="mute"></span></div>
+        <div id="rList"></div>
+      </div>
+    </section>
+
+    <!-- LOGS -->
+    <section id="t-logs" class="hidden">
+      <div class="card"><div id="logList"></div></div>
+    </section>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// Publishable key is public by design; security is enforced by RLS (supabase/schema.sql).
+const SUPABASE_URL = 'https://orktjikoruvoqxjzgncb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jXA06711bciVQP_mVbid3Q_pkF2o3zR';
+const STORE = 'My Bookstore', CUR = 'EGP';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+const h = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => Number(n).toFixed(2);
+const fmtDT = d => new Date(d).toLocaleString();
+let cart = [], isAdmin = false, user = null, products = [];
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); }
+
+// ---------- auth ----------
+async function boot() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await enter(data.session.user); else $('login').classList.remove('hidden');
+}
+async function enter(u) {
+  user = u;
+  const { data } = await sb.from('profiles').select('role').eq('id', u.id).maybeSingle();
+  isAdmin = data?.role === 'admin';
+  $('who').textContent = `${u.email} (${isAdmin ? 'admin' : 'cashier'})`;
+  $('addCard').classList.toggle('hidden', !isAdmin);
+  $('logs-tab')?.classList.toggle('hidden', !isAdmin);
+  document.querySelector('[data-t=logs]').classList.toggle('hidden', !isAdmin);
+  $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('code').focus();
+}
+$('loginBtn').onclick = async () => {
+  $('loginErr').textContent = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+  if (error) { $('loginErr').textContent = 'Sign in failed: ' + error.message; return; }
+  await enter(data.user);
+};
+$('password').onkeydown = e => { if (e.key === 'Enter') $('loginBtn').click(); };
+$('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+// ---------- tabs ----------
+$('tabs').onclick = e => {
+  const t = e.target.dataset.t; if (!t) return;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b === e.target));
+  ['sell', 'products', 'receipts', 'logs'].forEach(x => $('t-' + x).classList.toggle('hidden', x !== t));
+  if (t === 'products') loadProducts(); if (t === 'receipts') loadReceipts(); if (t === 'logs') loadLogs();
+};
+
+// ---------- sell ----------
+async function lookup(code) {
+  code = code.trim(); if (!code) return;
+  const { data, error } = await sb.from('products').select('*').eq('barcode', code).maybeSingle();
+  if (error) { toast('Lookup failed: ' + error.message); return; }
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No product with barcode ${h(code)}</div>`; return; }
+  if (mode === 'add') { addToCart(data); return; }
+  const out = data.stock_quantity <= 0;
+  $('checkCard').innerHTML = `<h2>Price check</h2><div><b>${h(data.name)}</b></div>
+    <div class="big">${money(data.selling_price)} ${CUR}</div>
+    <div class="${out ? 'bad' : 'ok'}">${out ? 'Out of stock' : 'In stock: ' + data.stock_quantity}</div>
+    <div class="row" style="margin-top:8px"><button class="btn alt" ${out ? 'disabled' : ''} id="chkAdd">Add to cart</button></div>`;
+  $('chkAdd').onclick = () => addToCart(data);
+}
+$('code').onkeydown = e => { if (e.key === 'Enter') { lookup($('code').value); $('code').value = ''; } };
+
+function addToCart(p) {
+  const i = cart.find(c => c.p.id === p.id), have = i ? i.q : 0;
+  if (have + 1 > p.stock_quantity) { toast('Not enough stock for ' + p.name); return; }
+  if (i) i.q++; else cart.push({ p, q: 1 });
+  renderCart();
+}
+function renderCart() {
+  const total = cart.reduce((s, c) => s + c.p.selling_price * c.q, 0);
+  $('cart').innerHTML = cart.length ? `<table>${cart.map((c, n) => `<tr><td>${h(c.p.name)}<div class="mute">${money(c.p.selling_price)}</div></td>
+    <td><button class="btn alt" data-m="${n}">−</button> ${c.q} <button class="btn alt" data-p="${n}">+</button></td>
+    <td class="r">${money(c.p.selling_price * c.q)}</td></tr>`).join('')}</table>` : '<div class="mute">Cart is empty</div>';
+  $('total').textContent = money(total) + ' ' + CUR;
+  $('payBtn').disabled = !cart.length;
+}
+$('cart').onclick = e => {
+  const m = e.target.dataset.m, p = e.target.dataset.p;
+  if (m != null) { const c = cart[m]; if (--c.q <= 0) cart.splice(m, 1); }
+  if (p != null) { const c = cart[p]; if (c.q + 1 > c.p.stock_quantity) toast('Only ' + c.p.stock_quantity + ' in stock'); else c.q++; }
+  renderCart();
+};
+$('clearBtn').onclick = () => { cart = []; renderCart(); };
+$('payBtn').onclick = async () => {
+  $('payBtn').disabled = true;
+  const items = cart.map(c => ({ product_id: c.p.id, quantity: c.q }));
+  const { data: id, error } = await sb.rpc('complete_sale', { p_items: items, p_payment_method: $('pay').value });
+  if (error) { toast(error.message.includes('insufficient') ? 'Stock changed — check quantities' : 'Checkout failed: ' + error.message); $('payBtn').disabled = false; return; }
+  const { data: tx } = await sb.from('transactions').select('*, transaction_items(quantity, unit_price, total_price, products(name))').eq('id', id).single();
+  cart = []; renderCart(); showReceipt(tx);
+};
+function receiptHtml(tx) {
+  const rows = tx.transaction_items.map(l => `<tr><td colspan=2><b>${h(l.products?.name)}</b></td></tr><tr><td>${l.quantity} x ${money(l.unit_price)}</td><td style="text-align:right">${money(l.total_price)}</td></tr>`).join('');
+  return `<!doctype html><meta charset=utf-8><style>@page{size:80mm auto;margin:4mm}body{font:12px monospace;width:72mm}table{width:100%}</style>
+  <h3 style="text-align:center">${h(STORE)}</h3><div style="text-align:center">${fmtDT(tx.created_at)}<br>#${tx.id.slice(0, 8).toUpperCase()}</div><hr><table>${rows}</table><hr>
+  <b>TOTAL ${money(tx.total_amount)} ${CUR}</b><br>Payment: ${h(tx.payment_method)}<hr><div style="text-align:center">Thank you!</div>`;
+}
+function showReceipt(tx) {
+  $('receipt').innerHTML = `<div class="ok" style="margin-top:10px">Sale completed — ${money(tx.total_amount)} ${CUR}</div><button class="btn alt" id="prt">Print receipt</button>`;
+  $('prt').onclick = () => printHtml(receiptHtml(tx));
+}
+function printHtml(html) {
+  const f = document.createElement('iframe'); f.style.display = 'none'; f.srcdoc = html;
+  f.onload = () => { f.contentWindow.print(); setTimeout(() => f.remove(), 30000); };
+  document.body.appendChild(f);
+}
+
+// camera scanning (needs BarcodeDetector: Chrome/Edge on Android, some desktop builds)
+let stream = null, timer = null;
+$('camBtn').onclick = async () => {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); clearInterval(timer); stream = null; $('cam').classList.add('hidden'); return; }
+  if (!('BarcodeDetector' in window)) { toast('Camera scanning is not supported in this browser — type the barcode'); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const v = $('cam'); v.srcObject = stream; v.classList.remove('hidden'); await v.play();
+    const det = new BarcodeDetector(); let last = '', at = 0;
+    timer = setInterval(async () => {
+      const r = await det.detect(v).catch(() => []);
+      if (r[0] && (r[0].rawValue !== last || Date.now() - at > 2000)) { last = r[0].rawValue; at = Date.now(); lookup(last); }
+    }, 400);
+  } catch (e) { toast('Camera unavailable: ' + e.message); }
+};
+
+// ---------- products ----------
+async function loadProducts() {
+  const { data, error } = await sb.from('products').select('*').order('name');
+  if (error) { toast(error.message); return; }
+  products = data; renderProducts();
+}
+function renderProducts() {
+  const q = $('pSearch').value.toLowerCase();
+  const list = products.filter(p => p.name.toLowerCase().includes(q) || p.barcode.includes(q));
+  $('prodList').innerHTML = list.length ? `<table><tr><th>Name</th><th>Barcode</th><th class="r">Price</th><th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
+    ${list.map(p => `<tr><td>${h(p.name)}</td><td class="mute">${h(p.barcode)}</td><td class="r">${money(p.selling_price)}</td>
+    <td class="r ${p.stock_quantity <= 5 ? 'bad' : ''}">${p.stock_quantity}</td>${isAdmin ? `<td class="r"><button class="btn alt" data-adj="${p.id}">Adjust</button></td>` : ''}</tr>`).join('')}</table>` : '<div class="mute">No products yet</div>';
+}
+$('pSearch').oninput = renderProducts;
+$('prodList').onclick = async e => {
+  const id = e.target.dataset.adj; if (!id) return;
+  const d = parseInt(prompt('Stock change (+ to add, − to remove):'), 10); if (!d) return;
+  const reason = prompt('Reason:'); if (!reason) return;
+  const { error } = await sb.rpc('adjust_stock', { p_product_id: id, p_delta: d, p_type: d > 0 ? 'restock' : 'manual_adjustment', p_reason: reason });
+  if (error) toast(error.message); else { toast('Stock updated'); loadProducts(); }
+};
+$('addProd').onclick = async () => {
+  const name = $('pName').value.trim(), barcode = $('pBarcode').value.trim();
+  const buy = parseFloat($('pBuy').value) || 0, sell = parseFloat($('pSell').value), stock = parseInt($('pStock').value, 10) || 0;
+  if (!name || !barcode || isNaN(sell)) { toast('Name, barcode and selling price are required'); return; }
+  const { data, error } = await sb.from('products').insert({ name, barcode, purchase_price: buy, selling_price: sell, stock_quantity: 0 }).select().single();
+  if (error) { toast(error.message); return; }
+  if (stock > 0) await sb.rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'restock', p_reason: 'Initial stock' });
+  ['pName', 'pBarcode', 'pBuy', 'pSell', 'pStock'].forEach(i => $(i).value = '');
+  toast('Product added'); loadProducts();
+};
+
+// ---------- receipts ----------
+$('rDate').valueAsDate = new Date();
+async function loadReceipts() {
+  const d = $('rDate').value ? new Date($('rDate').value + 'T00:00:00') : new Date();
+  const to = new Date(d.getTime() + 864e5);
+  const { data, error } = await sb.from('transactions').select('*, transaction_items(quantity, unit_price, total_price, products(name))')
+    .gte('created_at', d.toISOString()).lt('created_at', to.toISOString()).order('created_at', { ascending: false });
+  if (error) { toast(error.message); return; }
+  $('rSum').textContent = `${data.length} receipts · ${money(data.reduce((s, t) => s + Number(t.total_amount), 0))} ${CUR}`;
+  $('rList').innerHTML = data.map(t => `<details><summary>${fmtDT(t.created_at)} — <b>${money(t.total_amount)}</b> (${h(t.payment_method)})</summary>
+    <table>${t.transaction_items.map(l => `<tr><td>${h(l.products?.name)}</td><td>${l.quantity} × ${money(l.unit_price)}</td><td class="r">${money(l.total_price)}</td></tr>`).join('')}</table></details>`).join('') || '<div class="mute">No receipts</div>';
+}
+$('rLoad').onclick = loadReceipts;
+
+// ---------- stock log (admin only via RLS) ----------
+async function loadLogs() {
+  const { data, error } = await sb.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(100);
+  if (error) { toast(error.message); return; }
+  $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Product</th><th>Type</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
+    ${data.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${h(l.products?.name)}</td><td>${h(l.change_type)}</td><td class="r ${l.quantity_changed < 0 ? 'bad' : 'ok'}">${l.quantity_changed}</td>
+    <td class="r">${l.previous_stock} → ${l.new_stock}</td><td class="mute">${h(l.reason)}</td></tr>`).join('')}</table>` : '<div class="mute">No stock movements yet (admin only)</div>';
+}
+
+renderCart();
+boot();
+</script>
+</body>
+</html>

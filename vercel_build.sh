@@ -10,3 +10,6 @@ flutter pub get
 flutter build web --release \
   --dart-define=STORE_NAME="${STORE_NAME:-My Bookstore}" \
   --dart-define=CURRENCY="${CURRENCY:-EGP}"
+
+# Plain HTML/JS test app, served at /lite
+mkdir -p build/web/lite && cp web_lite/index.html build/web/lite/index.html
