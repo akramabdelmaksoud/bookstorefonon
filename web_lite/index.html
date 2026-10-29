@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bookstore POS</title>
+<title>Store POS</title>
 <style>
   :root { --bg:#f4f6f9; --card:#fff; --ink:#1a2030; --mute:#667085; --line:#e3e7ee; --pri:#1b5e8c; --priInk:#fff; --bad:#b3261e; --ok:#1f7a3d; --warn:#b26a00; }
   @media (prefers-color-scheme: dark) { :root { --bg:#10141a; --card:#1a1f28; --ink:#e8ebf2; --mute:#98a1b5; --line:#2a303c; --pri:#6db3e6; --priInk:#0b2233; --bad:#ff8a80; --ok:#6fd48f; --warn:#ffc266; } }
@@ -58,7 +58,7 @@
 <body>
 
 <div id="login" class="card hidden">
-  <h2 style="font-size:18px">Bookstore POS — sign in</h2>
+  <h2 style="font-size:18px">Store POS — sign in</h2>
   <div class="row"><input id="email" type="email" placeholder="Email" autocomplete="username"></div>
   <div class="row"><input id="password" type="password" placeholder="Password" autocomplete="current-password"></div>
   <div class="row"><button class="btn" id="loginBtn" style="width:100%">Sign in</button></div>
@@ -67,13 +67,13 @@
 
 <div id="app" class="hidden">
   <header>
-    <h1>📚 Bookstore POS</h1>
+    <h1>🎒 Store POS</h1>
     <span id="who"></span>
     <button class="btn alt sm" id="logout">Sign out</button>
   </header>
   <nav id="tabs">
     <button data-t="sell" class="on">Sell</button>
-    <button data-t="products">Books</button>
+    <button data-t="products">Items</button>
     <button data-t="receipts">Receipts</button>
     <button data-t="dash" class="adm">Dashboard</button>
     <button data-t="buy" class="adm">Purchases</button>
@@ -90,15 +90,16 @@
         <div>
           <div class="card">
             <h2>Scan or type a barcode</h2>
-            <div class="row"><input id="code" type="text" placeholder="Barcode / ISBN, then Enter" autofocus autocomplete="off"></div>
+            <div class="row"><input id="code" type="text" placeholder="Scan or type barcode, then Enter" autofocus autocomplete="off"></div>
             <div class="row">
               <label><input type="radio" name="mode" value="check" checked> Price check <span class="mute">(cart untouched)</span></label>
               <label><input type="radio" name="mode" value="add"> Add to cart</label>
             </div>
-            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><button class="btn alt" id="nameBtn">🔎 Search title / author</button></div>
+            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><button class="btn alt" id="nameBtn">🔎 Search by name / brand</button></div>
             <video id="cam" class="hidden" playsinline muted></video>
-            <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Part of a title, author or shelf…" autocomplete="off"><div id="nameRes"></div></div>
+            <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Part of a name, brand or shelf…" autocomplete="off"><div id="nameRes"></div></div>
           </div>
+          <div class="card"><h2>Browse by category</h2><div id="catChips" class="row"></div><div id="catItems"></div></div>
           <div class="card" id="checkCard"><h2>Price check</h2><div class="mute">Scan an item to see its price, stock and shelf. Your cart is never changed by a price check.</div></div>
         </div>
         <div class="card">
@@ -122,13 +123,13 @@
       </div>
     </section>
 
-    <!-- BOOKS -->
+    <!-- ITEMS -->
     <section id="t-products" class="hidden">
       <div class="card adm hidden" id="addCard">
-        <h2 id="formTitle">Add book</h2>
+        <h2 id="formTitle">Add item</h2>
         <input type="hidden" id="pId">
-        <div class="row"><input id="pName" type="text" placeholder="Title" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode / ISBN" style="flex:1"></div>
-        <div class="row"><input id="pAuthor" type="text" placeholder="Author"><input id="pPublisher" type="text" placeholder="Publisher"><input id="pShelf" type="text" placeholder="Shelf / location"></div>
+        <div class="row"><input id="pName" type="text" placeholder="Item name" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode" style="flex:1"></div>
+        <div class="row"><input id="pAuthor" type="text" placeholder="Brand"><input id="pPublisher" type="text" placeholder="Size / model / details"><input id="pShelf" type="text" placeholder="Shelf / location"></div>
         <div class="row">
           <input id="pBuy" type="number" step="0.01" min="0" placeholder="Purchase price">
           <input id="pSell" type="number" step="0.01" min="0" placeholder="Selling price">
@@ -136,11 +137,12 @@
           <input id="pReorder" type="number" min="0" placeholder="Reorder at (default 5)">
           <select id="pCat"><option value="">No category</option></select>
         </div>
-        <div class="row"><button class="btn" id="saveProd">Add book</button><button class="btn alt hidden" id="cancelEdit">Cancel edit</button>
+        <div class="row"><button class="btn" id="saveProd">Add item</button><button class="btn alt hidden" id="cancelEdit">Cancel edit</button>
           <span style="flex:1"></span><input id="newCat" type="text" placeholder="New category" style="max-width:180px"><button class="btn alt" id="addCat">+ Category</button></div>
       </div>
+      <div class="card adm hidden" id="catCard"><h2>Categories <span class="mute" style="font-weight:400">— add, rename or remove any time</span></h2><div id="catList"></div></div>
       <div class="card">
-        <div class="row"><input id="pSearch" type="text" placeholder="Filter by title, author, publisher, ISBN or shelf"><select id="pCatFilter" style="max-width:200px"><option value="">All categories</option></select>
+        <div class="row"><input id="pSearch" type="text" placeholder="Filter by name, brand, details, barcode or shelf"><select id="pCatFilter" style="max-width:200px"><option value="">All categories</option></select>
           <label class="fix"><input type="checkbox" id="lowOnly"> Low stock</label><label class="fix adm hidden"><input type="checkbox" id="showHidden"> Show hidden</label>
           <button class="btn alt sm adm hidden" id="pCsv">Export CSV</button></div>
         <div id="prodList"></div>
@@ -180,11 +182,11 @@
       <div class="card">
         <h2>Receive stock from a supplier</h2>
         <div class="row"><select id="bSupplier"><option value="">No supplier</option></select><button class="btn alt" id="addSupplier">+ Supplier</button></div>
-        <div class="row"><input id="bSearch" type="text" placeholder="Scan barcode or type a title to add a line" autocomplete="off"></div>
+        <div class="row"><input id="bSearch" type="text" placeholder="Scan barcode or type a name to add a line" autocomplete="off"></div>
         <div id="bRes"></div>
         <div id="bRows"></div>
         <div class="row" style="margin-top:8px"><input id="bNote" type="text" placeholder="Note / invoice number (optional)"><button class="btn" id="bSave" disabled>Receive stock</button></div>
-        <div class="mute">Receiving updates stock and recalculates each book's average purchase price.</div>
+        <div class="mute">Receiving updates stock and recalculates each item's average purchase price.</div>
       </div>
       <div class="grid">
         <div class="card"><h2>Recent purchases</h2><div id="bHist"></div></div>
@@ -232,7 +234,7 @@
 // The publishable key is public by design; all security is enforced by Row Level Security in the database.
 const SUPABASE_URL = 'https://orktjikoruvoqxjzgncb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_jXA06711bciVQP_mVbid3Q_pkF2o3zR';
-const STORE = 'My Bookstore', CUR = 'EGP', LOW = 5;
+const STORE = 'My Store', CUR = 'EGP', LOW = 5;
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = id => document.getElementById(id);
@@ -243,7 +245,7 @@ const ymd = d => { const x = new Date(d); return `${x.getFullYear()}-${String(x.
 const dayStart = s => new Date(s + 'T00:00:00');
 const reorderAt = p => p.reorder_level ?? LOW;
 const isLow = p => p.stock_quantity <= reorderAt(p);
-const sub = p => [p.author, p.publisher].filter(Boolean).join(' · ');
+const sub = p => [p.brand, p.details].filter(Boolean).join(' · ');
 let cart = [], isAdmin = false, user = null, products = [], cats = [], suppliers = [], names = {}, shift = null,
     channel = null, lastReceipts = [], draft = [];
 
@@ -330,12 +332,13 @@ async function loadCats() {
   const { data } = await sb.from('categories').select('*').order('name'); cats = data || [];
   const opts = cats.map(c => `<option value="${c.id}">${h(c.name)}</option>`).join('');
   $('pCat').innerHTML = '<option value="">No category</option>' + opts;
+  renderCatChips(); renderCatList();
   const keep = $('pCatFilter').value; $('pCatFilter').innerHTML = '<option value="">All categories</option>' + opts; $('pCatFilter').value = keep;
 }
 async function loadProducts() {
   const { data, error } = await sb.from('products').select('*').order('name');
-  if (error) return fail(error, 'Books');
-  products = data; renderProducts();
+  if (error) return fail(error, 'Items');
+  products = data; renderProducts(); renderCatList();
   cart.forEach(c => { const p = products.find(x => x.id === c.p.id); if (p) c.p = p; }); renderCart();
 }
 async function loadNames() { const { data } = await sb.from('profiles').select('id, full_name'); names = Object.fromEntries((data || []).map(p => [p.id, p.full_name || 'Staff'])); }
@@ -366,12 +369,21 @@ async function loadShift() {
 }
 
 // ---------- sell ----------
+function renderCatChips() {
+  $('catChips').innerHTML = cats.length ? cats.map(c => `<button class="btn alt sm" data-cat="${c.id}">${h(c.name)}</button>`).join('') : '<span class="mute">No categories yet.</span>';
+}
+$('catChips').onclick = e => {
+  const id = e.target.dataset.cat; if (!id) return;
+  const list = products.filter(p => p.category_id === id && p.active !== false).slice(0, 60);
+  $('catItems').innerHTML = list.length ? list.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(sub(p))} · ${money(p.selling_price)} · ${p.stock_quantity} left${p.shelf ? ' · ' + h(p.shelf) : ''}</span></span><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('') : '<div class="mute">Nothing in this category yet</div>';
+};
+$('catItems').onclick = e => { const a = e.target.dataset.add; if (a) addToCart(products.find(p => p.id === a)); };
 async function lookup(code) {
   code = code.trim(); if (!code) return;
   const { data, error } = await sb.from('products').select('*').eq('barcode', code).maybeSingle();
   if (error) return fail(error, 'Lookup failed');
   const mode = document.querySelector('input[name=mode]:checked').value;
-  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No book with barcode ${h(code)}</div>`; if (mode === 'add') toast('Unknown barcode ' + code); return; }
+  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No item with barcode ${h(code)}</div>`; if (mode === 'add') toast('Unknown barcode ' + code); return; }
   if (data.active === false) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">${h(data.name)} is hidden and not for sale</div>`; return; }
   if (mode === 'add') return addToCart(data);
   showCheck(data);
@@ -385,11 +397,11 @@ function showCheck(p) {
 }
 $('code').onkeydown = e => { if (e.key === 'Enter') { lookup($('code').value); $('code').value = ''; } };
 $('nameBtn').onclick = () => { $('nameBox').classList.toggle('hidden'); $('nameQ').focus(); };
-const matches = (p, q) => [p.name, p.author, p.publisher, p.shelf, p.barcode].some(v => (v || '').toLowerCase().includes(q));
+const matches = (p, q) => [p.name, p.brand, p.details, p.shelf, p.barcode].some(v => (v || '').toLowerCase().includes(q));
 $('nameQ').oninput = () => {
   const q = $('nameQ').value.toLowerCase().trim();
   const r = q ? products.filter(p => p.active !== false && matches(p, q)).slice(0, 8) : [];
-  $('nameRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.author || '')} · ${money(p.selling_price)} · ${p.stock_quantity} left${p.shelf ? ' · ' + h(p.shelf) : ''}</span></span><button class="btn alt sm" data-chk="${p.id}">Check</button><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('');
+  $('nameRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.brand || '')} · ${money(p.selling_price)} · ${p.stock_quantity} left${p.shelf ? ' · ' + h(p.shelf) : ''}</span></span><button class="btn alt sm" data-chk="${p.id}">Check</button><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('');
 };
 $('nameRes').onclick = e => {
   const c = e.target.dataset.chk, a = e.target.dataset.add;
@@ -487,62 +499,62 @@ $('camBtn').onclick = async () => {
   } catch (e) { fail(e, 'Camera unavailable'); }
 };
 
-// ---------- books ----------
+// ---------- items & categories ----------
 function renderProducts() {
   const q = $('pSearch').value.toLowerCase().trim(), cf = $('pCatFilter').value, low = $('lowOnly').checked, hid = $('showHidden').checked;
   const list = products.filter(p => (!q || matches(p, q)) && (!cf || p.category_id === cf) && (!low || isLow(p)) && (hid || p.active !== false));
   const cn = id => cats.find(c => c.id === id)?.name || '';
   const margin = p => p.selling_price > 0 ? Math.round((p.selling_price - p.purchase_price) / p.selling_price * 100) + '%' : '';
-  $('prodList').innerHTML = list.length ? `<table><tr><th>Title</th><th>Barcode</th><th>Shelf</th><th>Category</th>${isAdmin ? '<th class="r">Cost</th>' : ''}<th class="r">Price</th>${isAdmin ? '<th class="r">Margin</th>' : ''}<th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
+  $('prodList').innerHTML = list.length ? `<table><tr><th>Item</th><th>Barcode</th><th>Shelf</th><th>Category</th>${isAdmin ? '<th class="r">Cost</th>' : ''}<th class="r">Price</th>${isAdmin ? '<th class="r">Margin</th>' : ''}<th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
     ${list.map(p => `<tr style="${p.active === false ? 'opacity:.5' : ''}"><td>${h(p.name)}${p.active === false ? ' <span class="pill">hidden</span>' : ''}<div class="mute">${h(sub(p))}</div></td><td class="mute">${h(p.barcode)}</td><td class="mute">${h(p.shelf)}</td><td class="mute">${h(cn(p.category_id))}</td>
     ${isAdmin ? `<td class="r mute">${money(p.purchase_price)}</td>` : ''}<td class="r">${money(p.selling_price)}</td>${isAdmin ? `<td class="r mute">${margin(p)}</td>` : ''}
     <td class="r ${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : ''}">${p.stock_quantity}</td>
     ${isAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn alt sm" data-adj="${p.id}">Stock</button> <button class="btn alt sm" data-edit="${p.id}">Edit</button> <button class="btn alt sm" data-hide="${p.id}">${p.active === false ? 'Show' : 'Hide'}</button> <button class="btn alt sm" data-del="${p.id}">Delete</button></td>` : ''}</tr>`).join('')}</table>`
-    : '<div class="mute">No books match. ' + (isAdmin ? 'Add your first one above.' : '') + '</div>';
+    : '<div class="mute">No items match. ' + (isAdmin ? 'Add your first one above.' : '') + '</div>';
 }
 ['pSearch', 'pCatFilter', 'lowOnly', 'showHidden'].forEach(i => $(i).oninput = renderProducts);
 $('prodList').onclick = async e => {
   const d = e.target.dataset, find = id => products.find(p => p.id === id);
   if (d.adj) openAdjust(find(d.adj));
   if (d.edit) startEdit(find(d.edit));
-  if (d.hide) { const p = find(d.hide); const { error } = await sb.from('products').update({ active: p.active === false }).eq('id', p.id); if (error) return fail(error); toast(p.active === false ? 'Book is for sale again' : 'Book hidden from sale'); loadProducts(); }
+  if (d.hide) { const p = find(d.hide); const { error } = await sb.from('products').update({ active: p.active === false }).eq('id', p.id); if (error) return fail(error); toast(p.active === false ? 'Item is for sale again' : 'Item hidden from sale'); loadProducts(); }
   if (d.del) {
     const p = find(d.del);
     if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     const { error } = await sb.from('products').delete().eq('id', p.id);
-    if (error) return toast(error.code === '23503' ? 'Cannot delete: this book has sales or purchases. Use Hide instead.' : error.message);
+    if (error) return toast(error.code === '23503' ? 'Cannot delete: this item has sales or purchases. Use Hide instead.' : error.message);
     toast('Deleted'); loadProducts();
   }
 };
 const FORM = ['pId', 'pName', 'pBarcode', 'pAuthor', 'pPublisher', 'pShelf', 'pBuy', 'pSell', 'pStock', 'pReorder'];
 function startEdit(p) {
-  $('formTitle').textContent = 'Edit book'; $('pId').value = p.id; $('pName').value = p.name; $('pBarcode').value = p.barcode;
-  $('pAuthor').value = p.author || ''; $('pPublisher').value = p.publisher || ''; $('pShelf').value = p.shelf || ''; $('pReorder').value = p.reorder_level ?? '';
+  $('formTitle').textContent = 'Edit item'; $('pId').value = p.id; $('pName').value = p.name; $('pBarcode').value = p.barcode;
+  $('pAuthor').value = p.brand || ''; $('pPublisher').value = p.details || ''; $('pShelf').value = p.shelf || ''; $('pReorder').value = p.reorder_level ?? '';
   $('pBuy').value = p.purchase_price; $('pSell').value = p.selling_price; $('pCat').value = p.category_id || '';
   $('pStock').value = ''; $('pStock').disabled = true; $('pStock').placeholder = 'Use the Stock button';
   $('saveProd').textContent = 'Save changes'; $('cancelEdit').classList.remove('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function resetForm() {
-  $('formTitle').textContent = 'Add book'; FORM.forEach(i => $(i).value = '');
-  $('pCat').value = ''; $('pStock').disabled = false; $('pStock').placeholder = 'Initial stock'; $('saveProd').textContent = 'Add book'; $('cancelEdit').classList.add('hidden');
+  $('formTitle').textContent = 'Add item'; FORM.forEach(i => $(i).value = '');
+  $('pCat').value = ''; $('pStock').disabled = false; $('pStock').placeholder = 'Initial stock'; $('saveProd').textContent = 'Add item'; $('cancelEdit').classList.add('hidden');
 }
 $('cancelEdit').onclick = resetForm;
 $('saveProd').onclick = async () => {
   const name = $('pName').value.trim(), barcode = $('pBarcode').value.trim(), id = $('pId').value;
   const buy = parseFloat($('pBuy').value) || 0, sell = parseFloat($('pSell').value), stock = parseInt($('pStock').value, 10) || 0;
-  if (!name || !barcode || isNaN(sell) || sell < 0) return toast('Title, barcode and a valid selling price are required');
+  if (!name || !barcode || isNaN(sell) || sell < 0) return toast('Name, barcode and a valid selling price are required');
   const row = { name, barcode, purchase_price: buy, selling_price: sell, category_id: $('pCat').value || null,
-    author: $('pAuthor').value.trim() || null, publisher: $('pPublisher').value.trim() || null, shelf: $('pShelf').value.trim() || null,
+    brand: $('pAuthor').value.trim() || null, details: $('pPublisher').value.trim() || null, shelf: $('pShelf').value.trim() || null,
     reorder_level: $('pReorder').value === '' ? 5 : Math.max(0, parseInt($('pReorder').value, 10) || 0) };
   if (id) {
     const { error } = await sb.from('products').update(row).eq('id', id);
-    if (error) return toast(error.code === '23505' ? 'That barcode is already used by another book' : error.message);
+    if (error) return toast(error.code === '23505' ? 'That barcode is already used by another item' : error.message);
     toast('Saved');
   } else {
     const { data, error } = await sb.from('products').insert({ ...row, stock_quantity: 0 }).select().single();
     if (error) return toast(error.code === '23505' ? 'That barcode already exists' : error.message);
     if (stock > 0) { const r = await sb.rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'restock', p_reason: 'Initial stock' }); if (r.error) fail(r.error, 'Stock'); }
-    toast('Book added');
+    toast('Item added');
   }
   resetForm(); loadProducts();
 };
@@ -567,8 +579,28 @@ async function openAdjust(p) {
 }
 const csvDown = (lines, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' })); a.download = name; a.click(); };
 const csvQ = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-$('pCsv').onclick = () => csvDown([['title', 'author', 'publisher', 'barcode', 'shelf', 'category', 'cost', 'price', 'stock', 'reorder_at', 'hidden'].join(','),
-  ...products.map(p => [p.name, p.author, p.publisher, p.barcode, p.shelf, cats.find(c => c.id === p.category_id)?.name, p.purchase_price, p.selling_price, p.stock_quantity, reorderAt(p), p.active === false ? 'yes' : ''].map(csvQ).join(','))], `books_${ymd(new Date())}.csv`);
+$('pCsv').onclick = () => csvDown([['name', 'brand', 'details', 'barcode', 'shelf', 'category', 'cost', 'price', 'stock', 'reorder_at', 'hidden'].join(','),
+  ...products.map(p => [p.name, p.brand, p.details, p.barcode, p.shelf, cats.find(c => c.id === p.category_id)?.name, p.purchase_price, p.selling_price, p.stock_quantity, reorderAt(p), p.active === false ? 'yes' : ''].map(csvQ).join(','))], `items_${ymd(new Date())}.csv`);
+
+function renderCatList() {
+  if (!isAdmin) return;
+  $('catList').innerHTML = cats.length ? `<table>${cats.map(c => `<tr><td>${h(c.name)}</td><td class="mute">${products.filter(p => p.category_id === c.id).length} items</td><td class="r" style="white-space:nowrap"><button class="btn alt sm" data-crn="${c.id}">Rename</button> <button class="btn alt sm" data-cdel="${c.id}">Delete</button></td></tr>`).join('')}</table>` : '<div class="mute">No categories yet — add one with “+ Category”.</div>';
+}
+$('catList').onclick = async e => {
+  const d = e.target.dataset, c = cats.find(x => x.id === (d.crn || d.cdel)); if (!c) return;
+  if (d.crn) {
+    const v = await ask('Rename category', [{ k: 'name', label: 'Name', value: c.name, req: true }]); if (!v) return;
+    const { error } = await sb.from('categories').update({ name: v.name }).eq('id', c.id);
+    if (error) return toast(error.code === '23505' ? 'Category already exists' : error.message);
+    toast('Renamed'); await loadCats();
+  }
+  if (d.cdel) {
+    const n = products.filter(p => p.category_id === c.id).length;
+    if (!confirm(`Delete "${c.name}"?${n ? ` Its ${n} items stay but become uncategorised.` : ''}`)) return;
+    const { error } = await sb.from('categories').delete().eq('id', c.id); if (error) return fail(error);
+    toast('Category deleted'); await Promise.all([loadCats(), loadProducts()]);
+  }
+};
 
 // ---------- receipts ----------
 const today = ymd(new Date()); $('rFrom').value = $('rTo').value = today; $('dTo').value = today; $('dFrom').value = today; $('xDate').value = today;
@@ -595,7 +627,7 @@ $('rList').onclick = async e => {
   if (d.refund) {
     const t = lastReceipts.find(x => x.id === d.refund), lines = t.transaction_items.filter(l => l.quantity - l.refunded_qty > 0);
     if (!lines.length) return toast('Everything on this receipt was already returned');
-    const v = await ask(`Return on ${rno(t)}`, [{ k: 'x', type: 'note', html: 'Enter how many of each book come back. They go back into stock and the customer is refunded what they paid (after any discount).' },
+    const v = await ask(`Return on ${rno(t)}`, [{ k: 'x', type: 'note', html: 'Enter how many of each item come back. They go back into stock and the customer is refunded what they paid (after any discount).' },
       ...lines.map(l => ({ k: l.id, label: `${l.products?.name} — sold ${l.quantity}, returnable ${l.quantity - l.refunded_qty}`, type: 'number', value: 0, max: l.quantity - l.refunded_qty })),
       { k: 'reason', label: 'Reason (optional)' }], 'Refund');
     if (!v) return;
@@ -608,7 +640,7 @@ $('rList').onclick = async e => {
 };
 $('rCsv').onclick = () => {
   if (!lastReceipts.length) return toast('Load receipts first');
-  const lines = [['receipt', 'date', 'payment', 'discount', 'book', 'qty', 'unit_price', 'line_total'].join(',')];
+  const lines = [['receipt', 'date', 'payment', 'discount', 'item', 'qty', 'unit_price', 'line_total'].join(',')];
   lastReceipts.forEach(t => t.transaction_items.forEach(l => lines.push([rno(t), t.created_at, t.payment_method, t.discount, l.products?.name, l.quantity, l.unit_price, l.total_price].map(csvQ).join(','))));
   csvDown(lines, `receipts_${$('rFrom').value}_${$('rTo').value}.csv`);
 };
@@ -650,12 +682,12 @@ async function loadDash() {
     drawBars([...Array(24).keys()].map(k => [k + ':00', per[k] || 0, String(k)]), 'Revenue per hour');
   } else drawBars(s.series.map(r => [r.day, num(r.revenue), r.day.slice(8)]), 'Revenue per day');
 
-  $('topList').innerHTML = s.top_products.length ? `<table><tr><th>Book</th><th class="r">Sold</th><th class="r">Sales</th><th class="r">Profit</th></tr>${s.top_products.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r">${r.qty}</td><td class="r">${money(r.sales)}</td><td class="r ${num(r.profit) < 0 ? 'bad' : ''}">${money(r.profit)}</td></tr>`).join('')}</table>` : '<div class="mute">No sales in this period</div>';
+  $('topList').innerHTML = s.top_products.length ? `<table><tr><th>Item</th><th class="r">Sold</th><th class="r">Sales</th><th class="r">Profit</th></tr>${s.top_products.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.brand || '')}</div></td><td class="r">${r.qty}</td><td class="r">${money(r.sales)}</td><td class="r ${num(r.profit) < 0 ? 'bad' : ''}">${money(r.profit)}</td></tr>`).join('')}</table>` : '<div class="mute">No sales in this period</div>';
   lastReorder = s.reorder;
-  $('reorderList').innerHTML = s.reorder.length ? `<table><tr><th>Book</th><th class="r">Left</th><th class="r">Sold 30d</th><th class="r">Order</th><th></th></tr>${s.reorder.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r ${r.stock <= 0 ? 'bad' : 'warn'}">${r.stock}</td><td class="r">${r.sold_30d}</td><td class="r"><b>${r.suggested}</b></td><td><button class="btn alt sm" data-ro="${r.id}">+ Purchase</button></td></tr>`).join('')}</table>` : '<div class="ok">Everything is above its reorder level ✓</div>';
-  $('deadList').innerHTML = s.dead_stock.length ? `<table><tr><th>Book</th><th class="r">Copies</th><th class="r">Tied up (cost)</th></tr>${s.dead_stock.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r">${r.stock}</td><td class="r">${money(r.tied_up)}</td></tr>`).join('')}</table>` : '<div class="ok">Nothing stuck — every book sold in the last 60 days ✓</div>';
+  $('reorderList').innerHTML = s.reorder.length ? `<table><tr><th>Item</th><th class="r">Left</th><th class="r">Sold 30d</th><th class="r">Order</th><th></th></tr>${s.reorder.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.brand || '')}</div></td><td class="r ${r.stock <= 0 ? 'bad' : 'warn'}">${r.stock}</td><td class="r">${r.sold_30d}</td><td class="r"><b>${r.suggested}</b></td><td><button class="btn alt sm" data-ro="${r.id}">+ Purchase</button></td></tr>`).join('')}</table>` : '<div class="ok">Everything is above its reorder level ✓</div>';
+  $('deadList').innerHTML = s.dead_stock.length ? `<table><tr><th>Item</th><th class="r">Units</th><th class="r">Tied up (cost)</th></tr>${s.dead_stock.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.brand || '')}</div></td><td class="r">${r.stock}</td><td class="r">${money(r.tied_up)}</td></tr>`).join('')}</table>` : '<div class="ok">Nothing stuck — every item sold in the last 60 days ✓</div>';
   const iv = s.inventory;
-  $('invBox').innerHTML = `<div class="sum"><span>Titles</span><b>${iv.titles}</b></div><div class="sum"><span>Copies on shelf</span><b>${iv.units}</b></div><div class="sum"><span>At cost</span><b>${money(iv.cost_value)} ${CUR}</b></div><div class="sum"><span>At selling price</span><b>${money(iv.retail_value)} ${CUR}</b></div><div class="sum ok"><span>Potential gross profit</span><b>${money(num(iv.retail_value) - num(iv.cost_value))} ${CUR}</b></div>`;
+  $('invBox').innerHTML = `<div class="sum"><span>Products</span><b>${iv.titles}</b></div><div class="sum"><span>Units on shelf</span><b>${iv.units}</b></div><div class="sum"><span>At cost</span><b>${money(iv.cost_value)} ${CUR}</b></div><div class="sum"><span>At selling price</span><b>${money(iv.retail_value)} ${CUR}</b></div><div class="sum ok"><span>Potential gross profit</span><b>${money(num(iv.retail_value) - num(iv.cost_value))} ${CUR}</b></div>`;
   const rows = (arr, a) => arr.length ? arr.map(r => `<tr><td>${h(r[a])}</td><td class="r">${r.orders}</td><td class="r">${money(r.total)}</td></tr>`).join('') : '<tr><td class="mute" colspan=3>—</td></tr>';
   $('splitBox').innerHTML = `<table><tr><th>Payment</th><th class="r">Receipts</th><th class="r">Total</th></tr>${rows(s.by_payment, 'method')}<tr><th>Cashier</th><th class="r">Receipts</th><th class="r">Total</th></tr>${rows(s.by_cashier, 'name')}</table>`;
 }
@@ -697,15 +729,15 @@ $('bSearch').onkeydown = e => {
 };
 $('bSearch').oninput = () => {
   const q = $('bSearch').value.toLowerCase().trim(), r = q ? products.filter(p => matches(p, q)).slice(0, 8) : [];
-  $('bRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.author || '')} · ${p.stock_quantity} in stock</span></span><button class="btn alt sm" data-badd="${p.id}">Add</button></div>`).join('');
+  $('bRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.brand || '')} · ${p.stock_quantity} in stock</span></span><button class="btn alt sm" data-badd="${p.id}">Add</button></div>`).join('');
 };
 $('bRes').onclick = e => { const id = e.target.dataset.badd; if (!id) return; draftAdd(products.find(p => p.id === id), 1); $('bSearch').value = ''; $('bRes').innerHTML = ''; renderDraft(); };
 function renderDraft() {
   const total = draft.reduce((s, l) => s + l.q * l.cost, 0);
-  $('bRows').innerHTML = draft.length ? `<table><tr><th>Book</th><th class="r">Qty</th><th class="r">Unit cost</th><th class="r">Total</th><th></th></tr>${draft.map((l, i) => `<tr><td>${h(l.p.name)}<div class="mute">now ${l.p.stock_quantity} in stock</div></td>
+  $('bRows').innerHTML = draft.length ? `<table><tr><th>Item</th><th class="r">Qty</th><th class="r">Unit cost</th><th class="r">Total</th><th></th></tr>${draft.map((l, i) => `<tr><td>${h(l.p.name)}<div class="mute">now ${l.p.stock_quantity} in stock</div></td>
     <td><input type="number" min="1" data-q="${i}" value="${l.q}" style="width:80px"></td><td><input type="number" min="0" step="0.01" data-c="${i}" value="${l.cost}" style="width:100px"></td>
     <td class="r">${money(l.q * l.cost)}</td><td><button class="btn alt sm" data-x="${i}">✕</button></td></tr>`).join('')}
-    <tr><td colspan=3 class="r"><b>Total</b></td><td class="r"><b>${money(total)} ${CUR}</b></td><td></td></tr></table>` : '<div class="mute">Draft is empty. Add books above, or use “Add all to purchase” on the Dashboard.</div>';
+    <tr><td colspan=3 class="r"><b>Total</b></td><td class="r"><b>${money(total)} ${CUR}</b></td><td></td></tr></table>` : '<div class="mute">Draft is empty. Add items above, or use “Add all to purchase” on the Dashboard.</div>';
   $('bSave').disabled = !draft.length;
 }
 $('bRows').onchange = e => {
@@ -766,7 +798,7 @@ async function loadLogs() {
   let q = sb.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(200);
   if ($('lType').value) q = q.eq('change_type', $('lType').value);
   const { data, error } = await q; if (error) return fail(error, 'Log');
-  $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Book</th><th>Type</th><th>By</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
+  $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Item</th><th>Type</th><th>By</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
     ${data.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${h(l.products?.name)}</td><td>${h(l.change_type.replace('_', ' '))}</td><td class="mute">${h(names[l.performed_by] || '')}</td><td class="r ${l.quantity_changed < 0 ? 'bad' : 'ok'}">${l.quantity_changed > 0 ? '+' : ''}${l.quantity_changed}</td>
     <td class="r">${l.previous_stock} → ${l.new_stock}</td><td class="mute">${h(l.reason)}</td></tr>`).join('')}</table>` : '<div class="mute">No stock movements yet</div>';
 }
