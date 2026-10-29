@@ -12,15 +12,16 @@
   header { display:flex; gap:12px; align-items:center; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
   header h1 { font-size:17px; margin:0; flex:1; white-space:nowrap; }
   #who { color:var(--mute); font-size:13px; }
-  nav { display:flex; gap:6px; padding:12px 16px 0; flex-wrap:wrap; max-width:1200px; margin:0 auto; }
-  nav button { background:var(--card); border:1px solid var(--line); color:var(--ink); padding:8px 14px; border-radius:10px; cursor:pointer; font:inherit; }
+  nav { display:flex; gap:6px; padding:12px 16px 0; max-width:1200px; margin:0 auto; overflow-x:auto; }
+  nav button { background:var(--card); border:1px solid var(--line); color:var(--ink); padding:8px 14px; border-radius:10px; cursor:pointer; font:inherit; white-space:nowrap; }
   nav button.on { background:var(--pri); color:var(--priInk); border-color:var(--pri); }
   main { padding:16px; max-width:1200px; margin:0 auto; }
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:16px; }
+  .kpis .card { margin:0; }
   @media (max-width:800px) { .grid { grid-template-columns:1fr; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
-  .kpi .l { color:var(--mute); font-size:12px; } .kpi .v { font-size:22px; font-weight:700; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; overflow-x:auto; }
+  .kpi .l { color:var(--mute); font-size:12px; } .kpi .v { font-size:22px; font-weight:700; } .kpi .d { font-size:12px; }
   h2 { font-size:15px; margin:0 0 10px; }
   input, select, textarea { font:inherit; padding:9px 11px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
   input[type=text], input[type=number], input[type=email], input[type=password], input[type=date], select { width:100%; }
@@ -47,8 +48,11 @@
   .bars { display:flex; align-items:flex-end; gap:3px; height:150px; border-bottom:1px solid var(--line); }
   .bars div { flex:1; background:var(--pri); border-radius:3px 3px 0 0; min-height:1px; opacity:.85; }
   .barlbl { display:flex; gap:3px; font-size:10px; color:var(--mute); } .barlbl span { flex:1; text-align:center; overflow:hidden; }
-  dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--ink); max-width:420px; width:92vw; }
+  dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--ink); max-width:440px; width:92vw; }
   dialog::backdrop { background:rgba(0,0,0,.45); }
+  .fl { display:block; margin-bottom:8px; font-size:13px; color:var(--mute); } .fl input, .fl select { margin-top:3px; color:var(--ink); }
+  .banner { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 14px; border-radius:12px; margin-bottom:16px; border:1px solid var(--line); background:var(--card); }
+  .sum { display:flex; justify-content:space-between; padding:2px 0; }
 </style>
 </head>
 <body>
@@ -69,61 +73,76 @@
   </header>
   <nav id="tabs">
     <button data-t="sell" class="on">Sell</button>
-    <button data-t="products">Products</button>
+    <button data-t="products">Books</button>
     <button data-t="receipts">Receipts</button>
     <button data-t="dash" class="adm">Dashboard</button>
+    <button data-t="buy" class="adm">Purchases</button>
+    <button data-t="money" class="adm">Expenses &amp; shifts</button>
+    <button data-t="staff" class="adm">Staff</button>
     <button data-t="logs" class="adm">Stock log</button>
   </nav>
 
   <main>
     <!-- SELL -->
     <section id="t-sell">
+      <div class="banner" id="shiftBar"></div>
       <div class="grid">
         <div>
           <div class="card">
             <h2>Scan or type a barcode</h2>
-            <div class="row"><input id="code" type="text" placeholder="Barcode, then Enter" autofocus autocomplete="off"></div>
+            <div class="row"><input id="code" type="text" placeholder="Barcode / ISBN, then Enter" autofocus autocomplete="off"></div>
             <div class="row">
               <label><input type="radio" name="mode" value="check" checked> Price check <span class="mute">(cart untouched)</span></label>
               <label><input type="radio" name="mode" value="add"> Add to cart</label>
             </div>
-            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><button class="btn alt" id="nameBtn">🔎 Search by name</button></div>
+            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><button class="btn alt" id="nameBtn">🔎 Search title / author</button></div>
             <video id="cam" class="hidden" playsinline muted></video>
-            <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Type part of a title…" autocomplete="off"><div id="nameRes"></div></div>
+            <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Part of a title, author or shelf…" autocomplete="off"><div id="nameRes"></div></div>
           </div>
-          <div class="card" id="checkCard"><h2>Price check</h2><div class="mute">Scan an item to see its price and stock. Your cart is never changed by a price check.</div></div>
+          <div class="card" id="checkCard"><h2>Price check</h2><div class="mute">Scan an item to see its price, stock and shelf. Your cart is never changed by a price check.</div></div>
         </div>
         <div class="card">
           <h2>Cart</h2>
           <div id="cart"></div>
           <div class="row" style="margin-top:10px">
-            <span class="big" id="total">0.00</span><span style="flex:1"></span>
+            <input id="discVal" type="number" min="0" step="0.01" placeholder="Discount" style="max-width:120px">
+            <select id="discType" class="fix" style="width:auto"><option value="amt">EGP</option><option value="pct">%</option></select>
             <select id="pay" class="fix" style="width:auto"><option value="cash">Cash</option><option value="card">Card</option></select>
+            <input id="tender" type="number" min="0" step="0.01" placeholder="Cash received" style="max-width:140px">
+          </div>
+          <div id="sums"></div>
+          <div class="row" style="margin-top:8px">
             <button class="btn" id="payBtn" disabled>Pay</button>
+            <button class="btn alt" id="holdBtn">Hold</button>
             <button class="btn alt" id="clearBtn">Clear</button>
           </div>
+          <div id="held"></div>
           <div id="receipt"></div>
         </div>
       </div>
     </section>
 
-    <!-- PRODUCTS -->
+    <!-- BOOKS -->
     <section id="t-products" class="hidden">
       <div class="card adm hidden" id="addCard">
-        <h2 id="formTitle">Add product</h2>
+        <h2 id="formTitle">Add book</h2>
         <input type="hidden" id="pId">
-        <div class="row"><input id="pName" type="text" placeholder="Title / name" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode / ISBN" style="flex:1"></div>
+        <div class="row"><input id="pName" type="text" placeholder="Title" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode / ISBN" style="flex:1"></div>
+        <div class="row"><input id="pAuthor" type="text" placeholder="Author"><input id="pPublisher" type="text" placeholder="Publisher"><input id="pShelf" type="text" placeholder="Shelf / location"></div>
         <div class="row">
           <input id="pBuy" type="number" step="0.01" min="0" placeholder="Purchase price">
           <input id="pSell" type="number" step="0.01" min="0" placeholder="Selling price">
           <input id="pStock" type="number" min="0" placeholder="Initial stock">
+          <input id="pReorder" type="number" min="0" placeholder="Reorder at (default 5)">
           <select id="pCat"><option value="">No category</option></select>
         </div>
-        <div class="row"><button class="btn" id="saveProd">Add product</button><button class="btn alt hidden" id="cancelEdit">Cancel edit</button>
+        <div class="row"><button class="btn" id="saveProd">Add book</button><button class="btn alt hidden" id="cancelEdit">Cancel edit</button>
           <span style="flex:1"></span><input id="newCat" type="text" placeholder="New category" style="max-width:180px"><button class="btn alt" id="addCat">+ Category</button></div>
       </div>
       <div class="card">
-        <div class="row"><input id="pSearch" type="text" placeholder="Filter by name or barcode"><select id="pCatFilter" style="max-width:200px"><option value="">All categories</option></select><label class="fix"><input type="checkbox" id="lowOnly"> Low stock only</label></div>
+        <div class="row"><input id="pSearch" type="text" placeholder="Filter by title, author, publisher, ISBN or shelf"><select id="pCatFilter" style="max-width:200px"><option value="">All categories</option></select>
+          <label class="fix"><input type="checkbox" id="lowOnly"> Low stock</label><label class="fix adm hidden"><input type="checkbox" id="showHidden"> Show hidden</label>
+          <button class="btn alt sm adm hidden" id="pCsv">Export CSV</button></div>
         <div id="prodList"></div>
       </div>
     </section>
@@ -140,31 +159,71 @@
     <!-- DASHBOARD -->
     <section id="t-dash" class="hidden">
       <div class="card"><div class="row"><input id="dFrom" type="date" style="max-width:170px"><span class="fix mute">to</span><input id="dTo" type="date" style="max-width:170px">
-        <button class="btn alt" data-range="0">Today</button><button class="btn alt" data-range="6">7 days</button><button class="btn alt" data-range="29">30 days</button></div></div>
+        <button class="btn alt" data-range="0">Today</button><button class="btn alt" data-range="6">7 days</button><button class="btn alt" data-range="29">30 days</button><button class="btn alt" data-range="month">This month</button></div></div>
       <div id="kpis" class="kpis"></div>
       <div class="grid">
         <div class="card"><h2 id="chartTitle">Revenue</h2><div id="chart"></div></div>
-        <div class="card"><h2>Low stock (≤ 5)</h2><div id="lowList"></div></div>
+        <div class="card"><h2>Best sellers</h2><div id="topList"></div></div>
       </div>
-      <div class="card"><h2>Product sales in range</h2><div id="topList"></div></div>
+      <div class="grid">
+        <div class="card"><h2>Reorder suggestions <button class="btn alt sm" id="reorderAll" style="float:right">Add all to purchase</button></h2><div id="reorderList"></div></div>
+        <div class="card"><h2>Not selling (60+ days) — money sitting on shelves</h2><div id="deadList"></div></div>
+      </div>
+      <div class="grid">
+        <div class="card"><h2>Stock value</h2><div id="invBox"></div></div>
+        <div class="card"><h2>Sales by payment and by cashier</h2><div id="splitBox"></div></div>
+      </div>
+    </section>
+
+    <!-- PURCHASES -->
+    <section id="t-buy" class="hidden">
+      <div class="card">
+        <h2>Receive stock from a supplier</h2>
+        <div class="row"><select id="bSupplier"><option value="">No supplier</option></select><button class="btn alt" id="addSupplier">+ Supplier</button></div>
+        <div class="row"><input id="bSearch" type="text" placeholder="Scan barcode or type a title to add a line" autocomplete="off"></div>
+        <div id="bRes"></div>
+        <div id="bRows"></div>
+        <div class="row" style="margin-top:8px"><input id="bNote" type="text" placeholder="Note / invoice number (optional)"><button class="btn" id="bSave" disabled>Receive stock</button></div>
+        <div class="mute">Receiving updates stock and recalculates each book's average purchase price.</div>
+      </div>
+      <div class="grid">
+        <div class="card"><h2>Recent purchases</h2><div id="bHist"></div></div>
+        <div class="card"><h2>Suppliers</h2><div id="supList"></div></div>
+      </div>
+    </section>
+
+    <!-- EXPENSES & SHIFTS -->
+    <section id="t-money" class="hidden">
+      <div class="card">
+        <h2>Expenses</h2>
+        <div class="row"><select id="xCat"><option>Rent</option><option>Salaries</option><option>Electricity / water</option><option>Supplies</option><option>Transport</option><option>Marketing</option><option>Other</option></select>
+          <input id="xAmt" type="number" min="0" step="0.01" placeholder="Amount"><input id="xNote" type="text" placeholder="Note"><input id="xDate" type="date" style="max-width:160px"><button class="btn" id="xAdd">Add</button></div>
+        <div class="row"><input id="xFrom" type="date" style="max-width:170px"><span class="fix mute">to</span><input id="xTo" type="date" style="max-width:170px"><button class="btn alt" id="xLoad">Show</button><span id="xSum" class="mute"></span></div>
+        <div id="xList"></div>
+      </div>
+      <div class="card"><h2>Cash drawer shifts</h2><div id="shList"></div></div>
+    </section>
+
+    <!-- STAFF -->
+    <section id="t-staff" class="hidden">
+      <div class="card"><h2>Staff accounts <button class="btn sm" id="newStaff" style="float:right">+ Add staff</button></h2><div id="staffList"></div></div>
     </section>
 
     <!-- LOGS -->
     <section id="t-logs" class="hidden">
       <div class="card">
-        <div class="row"><select id="lType" style="max-width:220px"><option value="">All movements</option><option value="sale">Sales</option><option value="restock">Restocks</option><option value="manual_adjustment">Manual adjustments</option></select><button class="btn alt" id="lLoad">Refresh</button></div>
+        <div class="row"><select id="lType" style="max-width:220px"><option value="">All movements</option><option value="sale">Sales</option><option value="purchase">Purchases</option><option value="return">Returns</option><option value="restock">Restocks</option><option value="manual_adjustment">Manual adjustments</option></select><button class="btn alt" id="lLoad">Refresh</button></div>
         <div id="logList"></div>
       </div>
     </section>
   </main>
 </div>
 
-<dialog id="adjDlg">
-  <h2 id="adjTitle">Adjust stock</h2>
-  <div class="row"><select id="adjType"><option value="restock">Restock (stock received)</option><option value="manual_adjustment">Correction (count / damaged / lost)</option></select></div>
-  <div class="row"><input id="adjQty" type="number" placeholder="Quantity change (+ add, − remove)"></div>
-  <div class="row"><input id="adjReason" type="text" placeholder="Reason (required)"></div>
-  <div class="row"><button class="btn" id="adjOk">Save</button><button class="btn alt" id="adjCancel">Cancel</button></div>
+<dialog id="askDlg">
+  <h2 id="askTitle"></h2>
+  <div id="askBody"></div>
+  <div id="askErr" class="bad"></div>
+  <div class="row" style="margin-top:8px"><button class="btn" id="askOk">Save</button><button class="btn alt" id="askCancel">Cancel</button></div>
 </dialog>
 <div id="toast"></div>
 
@@ -182,10 +241,40 @@ const money = n => Number(n || 0).toLocaleString(undefined, { minimumFractionDig
 const fmtDT = d => new Date(d).toLocaleString();
 const ymd = d => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`; };
 const dayStart = s => new Date(s + 'T00:00:00');
-let cart = [], isAdmin = false, user = null, products = [], cats = [], channel = null, lastReceipts = [];
+const reorderAt = p => p.reorder_level ?? LOW;
+const isLow = p => p.stock_quantity <= reorderAt(p);
+const sub = p => [p.author, p.publisher].filter(Boolean).join(' · ');
+let cart = [], isAdmin = false, user = null, products = [], cats = [], suppliers = [], names = {}, shift = null,
+    channel = null, lastReceipts = [], draft = [];
 
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3000); }
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3500); }
 const fail = (e, what) => toast((what ? what + ': ' : '') + (e?.message || e));
+
+// Generic form dialog. fields: {k,label,type,value,req,options,step,html}. Resolves to {k:value} or null.
+function ask(title, fields, okLabel = 'Save') {
+  return new Promise(res => {
+    const d = $('askDlg'); let done = false;
+    $('askTitle').textContent = title; $('askErr').textContent = ''; $('askOk').textContent = okLabel;
+    $('askBody').innerHTML = fields.map(f => f.type === 'note' ? `<div class="mute" style="margin-bottom:8px">${f.html}</div>`
+      : `<label class="fl">${h(f.label)}${f.type === 'select'
+        ? `<select data-k="${f.k}">${f.options.map(o => `<option value="${h(o[0])}">${h(o[1])}</option>`).join('')}</select>`
+        : `<input data-k="${f.k}" type="${f.type || 'text'}" ${f.step ? `step="${f.step}"` : ''} ${f.max != null ? `max="${f.max}" min="0"` : ''} value="${h(f.value ?? '')}">`}</label>`).join('');
+    const finish = v => { if (done) return; done = true; if (d.open) d.close(); res(v); };
+    $('askOk').onclick = () => {
+      const v = {};
+      for (const f of fields) {
+        if (f.type === 'note') continue;
+        v[f.k] = d.querySelector(`[data-k="${f.k}"]`).value.trim();
+        if (f.req && !v[f.k]) { $('askErr').textContent = f.label + ' is required'; return; }
+      }
+      finish(v);
+    };
+    $('askCancel').onclick = () => finish(null);
+    d.onclose = () => finish(null);
+    d.showModal();
+    const first = d.querySelector('input,select'); if (first) first.focus();
+  });
+}
 
 // ---------- auth ----------
 async function boot() {
@@ -194,13 +283,14 @@ async function boot() {
 }
 async function enter(u) {
   user = u;
-  const { data } = await sb.from('profiles').select('role').eq('id', u.id).maybeSingle();
+  const { data } = await sb.from('profiles').select('role, full_name, active').eq('id', u.id).maybeSingle();
+  if (data && data.active === false) { await sb.auth.signOut(); $('login').classList.remove('hidden'); $('loginErr').textContent = 'This account has been disabled. Ask the owner.'; return; }
   isAdmin = data?.role === 'admin';
-  $('who').textContent = `${u.email} · ${isAdmin ? 'admin' : 'cashier'}`;
+  $('who').textContent = `${data?.full_name || u.email} · ${isAdmin ? 'owner/admin' : 'cashier'}`;
   document.querySelectorAll('.adm').forEach(e => e.classList.toggle('hidden', !isAdmin));
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
-  await Promise.all([loadCats(), loadProducts()]);
-  startRealtime();
+  await Promise.all([loadCats(), loadProducts(), loadShift(), isAdmin ? loadNames() : 0, isAdmin ? loadSuppliers() : 0]);
+  renderHeld(); startRealtime();
   $('code').focus();
 }
 $('loginBtn').onclick = async () => {
@@ -224,14 +314,16 @@ function startRealtime() {
 }
 
 // ---------- tabs ----------
+const TABS = ['sell', 'products', 'receipts', 'dash', 'buy', 'money', 'staff', 'logs'];
 const currentTab = () => document.querySelector('#tabs button.on').dataset.t;
-$('tabs').onclick = e => {
-  const t = e.target.dataset.t; if (!t) return;
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b === e.target));
-  ['sell', 'products', 'receipts', 'dash', 'logs'].forEach(x => $('t-' + x).classList.toggle('hidden', x !== t));
-  if (t === 'products') loadProducts(); if (t === 'receipts') loadReceipts(); if (t === 'dash') loadDash(); if (t === 'logs') loadLogs();
-  if (t === 'sell') $('code').focus();
-};
+function showTab(t) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  TABS.forEach(x => $('t-' + x).classList.toggle('hidden', x !== t));
+  if (t === 'products') loadProducts(); if (t === 'receipts') loadReceipts(); if (t === 'dash') loadDash();
+  if (t === 'buy') loadBuy(); if (t === 'money') { loadExpenses(); loadShifts(); } if (t === 'staff') loadStaff(); if (t === 'logs') loadLogs();
+  if (t === 'sell') { loadShift(); $('code').focus(); }
+}
+$('tabs').onclick = e => { const t = e.target.dataset.t; if (t) showTab(t); };
 
 // ---------- data ----------
 async function loadCats() {
@@ -242,10 +334,35 @@ async function loadCats() {
 }
 async function loadProducts() {
   const { data, error } = await sb.from('products').select('*').order('name');
-  if (error) return fail(error, 'Products');
+  if (error) return fail(error, 'Books');
   products = data; renderProducts();
-  // keep cart prices/stock in sync with the database
   cart.forEach(c => { const p = products.find(x => x.id === c.p.id); if (p) c.p = p; }); renderCart();
+}
+async function loadNames() { const { data } = await sb.from('profiles').select('id, full_name'); names = Object.fromEntries((data || []).map(p => [p.id, p.full_name || 'Staff'])); }
+async function loadSuppliers() {
+  const { data } = await sb.from('suppliers').select('*').order('name'); suppliers = data || [];
+  const keep = $('bSupplier').value;
+  $('bSupplier').innerHTML = '<option value="">No supplier</option>' + suppliers.map(s => `<option value="${s.id}">${h(s.name)}</option>`).join(''); $('bSupplier').value = keep;
+}
+
+// ---------- shift ----------
+async function loadShift() {
+  const { data } = await sb.from('shifts').select('*').eq('cashier_id', user.id).is('closed_at', null).maybeSingle();
+  shift = data;
+  $('shiftBar').innerHTML = shift
+    ? `<span class="ok">● Shift open</span><span class="mute">since ${fmtDT(shift.opened_at)} · opening cash ${money(shift.opening_cash)} ${CUR}</span><span style="flex:1"></span><button class="btn alt sm" id="closeShift">Close shift &amp; count cash</button>`
+    : `<span class="warn">○ No shift open</span><span class="mute">Open a shift so cash sales are tracked against your drawer.</span><span style="flex:1"></span><button class="btn sm" id="openShift">Open shift</button>`;
+  if ($('openShift')) $('openShift').onclick = async () => {
+    const v = await ask('Open shift', [{ k: 'cash', label: `Cash in drawer now (${CUR})`, type: 'number', step: '0.01', value: '0', req: true }], 'Open shift'); if (!v) return;
+    const { error } = await sb.rpc('open_shift', { p_opening: parseFloat(v.cash) || 0 }); if (error) return fail(error); toast('Shift opened'); loadShift();
+  };
+  if ($('closeShift')) $('closeShift').onclick = async () => {
+    const v = await ask('Close shift', [{ k: 'cash', label: `Cash counted in drawer (${CUR})`, type: 'number', step: '0.01', req: true }, { k: 'note', label: 'Note (optional)' }], 'Close shift'); if (!v) return;
+    const { data, error } = await sb.rpc('close_shift', { p_counted: parseFloat(v.cash), p_note: v.note || null }); if (error) return fail(error);
+    const d = Number(data.difference);
+    await ask('Shift closed', [{ k: 'x', type: 'note', html: `Opening ${money(data.opening)} + cash sales ${money(data.cash_sales)} − cash refunds ${money(data.cash_refunds)}<br>Expected <b>${money(data.expected)}</b> · Counted <b>${money(data.counted)}</b><br><b class="${d === 0 ? 'ok' : 'bad'}">${d === 0 ? 'Drawer matches ✔' : (d > 0 ? 'Over by ' : 'Short by ') + money(Math.abs(d)) + ' ' + CUR}</b>` }], 'OK');
+    loadShift();
+  };
 }
 
 // ---------- sell ----------
@@ -254,23 +371,25 @@ async function lookup(code) {
   const { data, error } = await sb.from('products').select('*').eq('barcode', code).maybeSingle();
   if (error) return fail(error, 'Lookup failed');
   const mode = document.querySelector('input[name=mode]:checked').value;
-  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No product with barcode ${h(code)}</div>`; if (mode === 'add') toast('Unknown barcode ' + code); return; }
+  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No book with barcode ${h(code)}</div>`; if (mode === 'add') toast('Unknown barcode ' + code); return; }
+  if (data.active === false) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">${h(data.name)} is hidden and not for sale</div>`; return; }
   if (mode === 'add') return addToCart(data);
   showCheck(data);
 }
 function showCheck(p) {
   const out = p.stock_quantity <= 0;
-  $('checkCard').innerHTML = `<h2>Price check</h2><div><b>${h(p.name)}</b></div><div class="big">${money(p.selling_price)} ${CUR}</div>
-    <div class="${out ? 'bad' : p.stock_quantity <= LOW ? 'warn' : 'ok'}">${out ? 'Out of stock' : 'In stock: ' + p.stock_quantity}</div>
+  $('checkCard').innerHTML = `<h2>Price check</h2><div><b>${h(p.name)}</b></div><div class="mute">${h(sub(p))}${p.shelf ? ' · Shelf ' + h(p.shelf) : ''}</div><div class="big">${money(p.selling_price)} ${CUR}</div>
+    <div class="${out ? 'bad' : isLow(p) ? 'warn' : 'ok'}">${out ? 'Out of stock' : 'In stock: ' + p.stock_quantity}</div>
     <div class="row" style="margin-top:8px"><button class="btn alt" ${out ? 'disabled' : ''} id="chkAdd">Add to cart</button></div>`;
   $('chkAdd').onclick = () => addToCart(p);
 }
 $('code').onkeydown = e => { if (e.key === 'Enter') { lookup($('code').value); $('code').value = ''; } };
 $('nameBtn').onclick = () => { $('nameBox').classList.toggle('hidden'); $('nameQ').focus(); };
+const matches = (p, q) => [p.name, p.author, p.publisher, p.shelf, p.barcode].some(v => (v || '').toLowerCase().includes(q));
 $('nameQ').oninput = () => {
   const q = $('nameQ').value.toLowerCase().trim();
-  const r = q ? products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 8) : [];
-  $('nameRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${money(p.selling_price)} · ${p.stock_quantity} left</span></span><button class="btn alt sm" data-chk="${p.id}">Check</button><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('');
+  const r = q ? products.filter(p => p.active !== false && matches(p, q)).slice(0, 8) : [];
+  $('nameRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.author || '')} · ${money(p.selling_price)} · ${p.stock_quantity} left${p.shelf ? ' · ' + h(p.shelf) : ''}</span></span><button class="btn alt sm" data-chk="${p.id}">Check</button><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('');
 };
 $('nameRes').onclick = e => {
   const c = e.target.dataset.chk, a = e.target.dataset.add;
@@ -282,14 +401,24 @@ function addToCart(p) {
   if (i) i.q++; else cart.push({ p, q: 1 });
   renderCart();
 }
+const subtotal = () => cart.reduce((s, c) => s + c.p.selling_price * c.q, 0);
+function discount() {
+  const v = parseFloat($('discVal').value) || 0, s = subtotal();
+  const d = $('discType').value === 'pct' ? Math.round(s * v) / 100 : v;
+  return Math.max(0, Math.min(+d.toFixed(2), s));
+}
 function renderCart() {
-  const total = cart.reduce((s, c) => s + c.p.selling_price * c.q, 0);
+  const s = subtotal(), d = discount(), total = s - d;
   $('cart').innerHTML = cart.length ? `<table>${cart.map((c, n) => `<tr><td>${h(c.p.name)}<div class="mute">${money(c.p.selling_price)}</div></td>
     <td style="white-space:nowrap"><button class="btn alt sm" data-m="${n}">−</button> <b>${c.q}</b> <button class="btn alt sm" data-p="${n}">+</button></td>
     <td class="r">${money(c.p.selling_price * c.q)}</td><td><button class="btn alt sm" data-x="${n}" title="Remove">✕</button></td></tr>`).join('')}</table>` : '<div class="mute">Cart is empty</div>';
-  $('total').textContent = money(total) + ' ' + CUR;
+  const tender = parseFloat($('tender').value) || 0, change = $('pay').value === 'cash' && tender > 0 ? tender - total : null;
+  $('sums').innerHTML = (d > 0 ? `<div class="sum mute"><span>Subtotal</span><span>${money(s)}</span></div><div class="sum ok"><span>Discount</span><span>− ${money(d)}</span></div>` : '')
+    + `<div class="sum"><span class="big">Total</span><span class="big">${money(total)} ${CUR}</span></div>`
+    + (change != null && cart.length ? `<div class="sum ${change < 0 ? 'bad' : 'ok'}"><span>${change < 0 ? 'Still to pay' : 'Change to give'}</span><b>${money(Math.abs(change))}</b></div>` : '');
   $('payBtn').disabled = !cart.length;
 }
+['discVal', 'discType', 'pay', 'tender'].forEach(i => $(i).oninput = renderCart);
 $('cart').onclick = e => {
   const d = e.target.dataset, c = cart[d.m ?? d.p ?? d.x];
   if (d.m != null && --c.q <= 0) cart.splice(d.m, 1);
@@ -297,24 +426,45 @@ $('cart').onclick = e => {
   if (d.x != null) cart.splice(d.x, 1);
   renderCart();
 };
-$('clearBtn').onclick = () => { cart = []; renderCart(); };
+function resetSale() { cart = []; $('discVal').value = ''; $('tender').value = ''; renderCart(); }
+$('clearBtn').onclick = resetSale;
+// held carts live in this browser only
+const heldGet = () => { try { return JSON.parse(localStorage.getItem('held_carts') || '[]'); } catch { return []; } };
+const heldSet = v => localStorage.setItem('held_carts', JSON.stringify(v));
+function renderHeld() {
+  const l = heldGet();
+  $('held').innerHTML = l.length ? `<div class="mute" style="margin-top:8px">Held carts</div>` + l.map((x, i) => `<div class="row"><span style="flex:1">${fmtDT(x.at)} · ${x.items.reduce((s, y) => s + y.q, 0)} items</span><button class="btn alt sm" data-res="${i}">Resume</button><button class="btn alt sm" data-del="${i}">✕</button></div>`).join('') : '';
+}
+$('holdBtn').onclick = () => { if (!cart.length) return toast('Cart is empty'); heldSet([...heldGet(), { at: Date.now(), items: cart.map(c => ({ id: c.p.id, q: c.q })) }]); resetSale(); renderHeld(); toast('Cart held — serve the next customer'); };
+$('held').onclick = e => {
+  const l = heldGet(), d = e.target.dataset;
+  if (d.del != null) { l.splice(d.del, 1); heldSet(l); renderHeld(); }
+  if (d.res != null) {
+    if (cart.length) return toast('Hold or clear the current cart first');
+    const x = l[d.res]; l.splice(d.res, 1); heldSet(l);
+    x.items.forEach(i => { const p = products.find(p => p.id === i.id); if (p && p.active !== false) cart.push({ p, q: Math.min(i.q, p.stock_quantity) }); });
+    cart = cart.filter(c => c.q > 0); renderCart(); renderHeld();
+  }
+};
+const TX_SEL = '*, transaction_items(id, product_id, quantity, unit_price, total_price, refunded_qty, products(name))';
 $('payBtn').onclick = async () => {
   $('payBtn').disabled = true;
   const items = cart.map(c => ({ product_id: c.p.id, quantity: c.q }));
-  const { data: id, error } = await sb.rpc('complete_sale', { p_items: items, p_payment_method: $('pay').value });
+  const { data: id, error } = await sb.rpc('complete_sale', { p_items: items, p_payment_method: $('pay').value, p_discount: discount() });
   if (error) { toast(error.message.includes('insufficient') ? 'Stock changed — adjust quantities and try again' : 'Checkout failed: ' + error.message); $('payBtn').disabled = false; await loadProducts(); return; }
   const { data: tx } = await sb.from('transactions').select(TX_SEL).eq('id', id).single();
-  cart = []; renderCart(); showReceipt(tx); loadProducts();
+  resetSale(); showReceipt(tx); loadProducts();
 };
-const TX_SEL = '*, transaction_items(quantity, unit_price, total_price, products(name, purchase_price))';
+const rno = tx => tx.receipt_no ? '#' + String(tx.receipt_no).padStart(5, '0') : '#' + tx.id.slice(0, 8).toUpperCase();
 function receiptHtml(tx) {
   const rows = tx.transaction_items.map(l => `<tr><td colspan=2><b>${h(l.products?.name)}</b></td></tr><tr><td>${l.quantity} x ${money(l.unit_price)}</td><td style="text-align:right">${money(l.total_price)}</td></tr>`).join('');
+  const d = Number(tx.discount || 0);
   return `<!doctype html><meta charset=utf-8><style>@page{size:80mm auto;margin:4mm}body{font:12px monospace;width:72mm}table{width:100%}hr{border:0;border-top:1px dashed #000}</style>
-  <h3 style="text-align:center;margin:0">${h(STORE)}</h3><div style="text-align:center">${fmtDT(tx.created_at)}<br>#${tx.id.slice(0, 8).toUpperCase()}</div><hr><table>${rows}</table><hr>
-  <b>TOTAL ${money(tx.total_amount)} ${CUR}</b><br>Payment: ${h(tx.payment_method)}<hr><div style="text-align:center">Thank you!</div>`;
+  <h3 style="text-align:center;margin:0">${h(STORE)}</h3><div style="text-align:center">${fmtDT(tx.created_at)}<br>Receipt ${rno(tx)}</div><hr><table>${rows}</table><hr>
+  ${d > 0 ? `Subtotal ${money(tx.subtotal)}<br>Discount -${money(d)}<br>` : ''}<b>TOTAL ${money(tx.total_amount)} ${CUR}</b><br>Payment: ${h(tx.payment_method)}<hr><div style="text-align:center">Thank you!</div>`;
 }
 function showReceipt(tx) {
-  $('receipt').innerHTML = `<div class="ok" style="margin-top:10px">✔ Sale completed — ${money(tx.total_amount)} ${CUR}</div><div class="row"><button class="btn alt" id="prt">🖨 Print receipt</button></div>`;
+  $('receipt').innerHTML = `<div class="ok" style="margin-top:10px">✔ Sale ${rno(tx)} completed — ${money(tx.total_amount)} ${CUR}</div><div class="row"><button class="btn alt" id="prt">🖨 Print receipt</button></div>`;
   $('prt').onclick = () => printHtml(receiptHtml(tx));
 }
 function printHtml(html) {
@@ -337,55 +487,62 @@ $('camBtn').onclick = async () => {
   } catch (e) { fail(e, 'Camera unavailable'); }
 };
 
-// ---------- products ----------
+// ---------- books ----------
 function renderProducts() {
-  const q = $('pSearch').value.toLowerCase(), cf = $('pCatFilter').value, low = $('lowOnly').checked;
-  const list = products.filter(p => (p.name.toLowerCase().includes(q) || p.barcode.includes(q)) && (!cf || p.category_id === cf) && (!low || p.stock_quantity <= LOW));
+  const q = $('pSearch').value.toLowerCase().trim(), cf = $('pCatFilter').value, low = $('lowOnly').checked, hid = $('showHidden').checked;
+  const list = products.filter(p => (!q || matches(p, q)) && (!cf || p.category_id === cf) && (!low || isLow(p)) && (hid || p.active !== false));
   const cn = id => cats.find(c => c.id === id)?.name || '';
-  $('prodList').innerHTML = list.length ? `<table><tr><th>Name</th><th>Barcode</th><th>Category</th><th class="r">Price</th><th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
-    ${list.map(p => `<tr><td>${h(p.name)}</td><td class="mute">${h(p.barcode)}</td><td class="mute">${h(cn(p.category_id))}</td><td class="r">${money(p.selling_price)}</td>
-    <td class="r ${p.stock_quantity <= 0 ? 'bad' : p.stock_quantity <= LOW ? 'warn' : ''}">${p.stock_quantity}</td>
-    ${isAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn alt sm" data-adj="${p.id}">Stock</button> <button class="btn alt sm" data-edit="${p.id}">Edit</button> <button class="btn alt sm" data-del="${p.id}">Delete</button></td>` : ''}</tr>`).join('')}</table>`
-    : '<div class="mute">No products match. ' + (isAdmin ? 'Add your first one above.' : '') + '</div>';
+  const margin = p => p.selling_price > 0 ? Math.round((p.selling_price - p.purchase_price) / p.selling_price * 100) + '%' : '';
+  $('prodList').innerHTML = list.length ? `<table><tr><th>Title</th><th>Barcode</th><th>Shelf</th><th>Category</th>${isAdmin ? '<th class="r">Cost</th>' : ''}<th class="r">Price</th>${isAdmin ? '<th class="r">Margin</th>' : ''}<th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
+    ${list.map(p => `<tr style="${p.active === false ? 'opacity:.5' : ''}"><td>${h(p.name)}${p.active === false ? ' <span class="pill">hidden</span>' : ''}<div class="mute">${h(sub(p))}</div></td><td class="mute">${h(p.barcode)}</td><td class="mute">${h(p.shelf)}</td><td class="mute">${h(cn(p.category_id))}</td>
+    ${isAdmin ? `<td class="r mute">${money(p.purchase_price)}</td>` : ''}<td class="r">${money(p.selling_price)}</td>${isAdmin ? `<td class="r mute">${margin(p)}</td>` : ''}
+    <td class="r ${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : ''}">${p.stock_quantity}</td>
+    ${isAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn alt sm" data-adj="${p.id}">Stock</button> <button class="btn alt sm" data-edit="${p.id}">Edit</button> <button class="btn alt sm" data-hide="${p.id}">${p.active === false ? 'Show' : 'Hide'}</button> <button class="btn alt sm" data-del="${p.id}">Delete</button></td>` : ''}</tr>`).join('')}</table>`
+    : '<div class="mute">No books match. ' + (isAdmin ? 'Add your first one above.' : '') + '</div>';
 }
-['pSearch', 'pCatFilter', 'lowOnly'].forEach(i => $(i).oninput = renderProducts);
+['pSearch', 'pCatFilter', 'lowOnly', 'showHidden'].forEach(i => $(i).oninput = renderProducts);
 $('prodList').onclick = async e => {
-  const d = e.target.dataset;
-  if (d.adj) openAdjust(products.find(p => p.id === d.adj));
-  if (d.edit) startEdit(products.find(p => p.id === d.edit));
+  const d = e.target.dataset, find = id => products.find(p => p.id === id);
+  if (d.adj) openAdjust(find(d.adj));
+  if (d.edit) startEdit(find(d.edit));
+  if (d.hide) { const p = find(d.hide); const { error } = await sb.from('products').update({ active: p.active === false }).eq('id', p.id); if (error) return fail(error); toast(p.active === false ? 'Book is for sale again' : 'Book hidden from sale'); loadProducts(); }
   if (d.del) {
-    const p = products.find(x => x.id === d.del);
+    const p = find(d.del);
     if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     const { error } = await sb.from('products').delete().eq('id', p.id);
-    if (error) return toast(error.code === '23503' ? 'Cannot delete: this product already has sales. Set its stock to 0 instead.' : error.message);
+    if (error) return toast(error.code === '23503' ? 'Cannot delete: this book has sales or purchases. Use Hide instead.' : error.message);
     toast('Deleted'); loadProducts();
   }
 };
+const FORM = ['pId', 'pName', 'pBarcode', 'pAuthor', 'pPublisher', 'pShelf', 'pBuy', 'pSell', 'pStock', 'pReorder'];
 function startEdit(p) {
-  $('formTitle').textContent = 'Edit product'; $('pId').value = p.id; $('pName').value = p.name; $('pBarcode').value = p.barcode;
+  $('formTitle').textContent = 'Edit book'; $('pId').value = p.id; $('pName').value = p.name; $('pBarcode').value = p.barcode;
+  $('pAuthor').value = p.author || ''; $('pPublisher').value = p.publisher || ''; $('pShelf').value = p.shelf || ''; $('pReorder').value = p.reorder_level ?? '';
   $('pBuy').value = p.purchase_price; $('pSell').value = p.selling_price; $('pCat').value = p.category_id || '';
   $('pStock').value = ''; $('pStock').disabled = true; $('pStock').placeholder = 'Use the Stock button';
   $('saveProd').textContent = 'Save changes'; $('cancelEdit').classList.remove('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function resetForm() {
-  $('formTitle').textContent = 'Add product'; ['pId', 'pName', 'pBarcode', 'pBuy', 'pSell', 'pStock'].forEach(i => $(i).value = '');
-  $('pCat').value = ''; $('pStock').disabled = false; $('pStock').placeholder = 'Initial stock'; $('saveProd').textContent = 'Add product'; $('cancelEdit').classList.add('hidden');
+  $('formTitle').textContent = 'Add book'; FORM.forEach(i => $(i).value = '');
+  $('pCat').value = ''; $('pStock').disabled = false; $('pStock').placeholder = 'Initial stock'; $('saveProd').textContent = 'Add book'; $('cancelEdit').classList.add('hidden');
 }
 $('cancelEdit').onclick = resetForm;
 $('saveProd').onclick = async () => {
   const name = $('pName').value.trim(), barcode = $('pBarcode').value.trim(), id = $('pId').value;
   const buy = parseFloat($('pBuy').value) || 0, sell = parseFloat($('pSell').value), stock = parseInt($('pStock').value, 10) || 0;
-  if (!name || !barcode || isNaN(sell) || sell < 0) return toast('Name, barcode and a valid selling price are required');
-  const row = { name, barcode, purchase_price: buy, selling_price: sell, category_id: $('pCat').value || null };
+  if (!name || !barcode || isNaN(sell) || sell < 0) return toast('Title, barcode and a valid selling price are required');
+  const row = { name, barcode, purchase_price: buy, selling_price: sell, category_id: $('pCat').value || null,
+    author: $('pAuthor').value.trim() || null, publisher: $('pPublisher').value.trim() || null, shelf: $('pShelf').value.trim() || null,
+    reorder_level: $('pReorder').value === '' ? 5 : Math.max(0, parseInt($('pReorder').value, 10) || 0) };
   if (id) {
     const { error } = await sb.from('products').update(row).eq('id', id);
-    if (error) return toast(error.code === '23505' ? 'That barcode is already used by another product' : error.message);
+    if (error) return toast(error.code === '23505' ? 'That barcode is already used by another book' : error.message);
     toast('Saved');
   } else {
     const { data, error } = await sb.from('products').insert({ ...row, stock_quantity: 0 }).select().single();
     if (error) return toast(error.code === '23505' ? 'That barcode already exists' : error.message);
     if (stock > 0) { const r = await sb.rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'restock', p_reason: 'Initial stock' }); if (r.error) fail(r.error, 'Stock'); }
-    toast('Product added');
+    toast('Book added');
   }
   resetForm(); loadProducts();
 };
@@ -395,20 +552,27 @@ $('addCat').onclick = async () => {
   if (error) return toast(error.code === '23505' ? 'Category already exists' : error.message);
   $('newCat').value = ''; await loadCats(); toast('Category added');
 };
-let adjProduct = null;
-function openAdjust(p) { adjProduct = p; $('adjTitle').textContent = `${p.name} — stock ${p.stock_quantity}`; $('adjQty').value = ''; $('adjReason').value = ''; $('adjDlg').showModal(); }
-$('adjCancel').onclick = () => $('adjDlg').close();
-$('adjOk').onclick = async () => {
-  const d = parseInt($('adjQty').value, 10), reason = $('adjReason').value.trim(), type = $('adjType').value;
-  if (!d) return toast('Enter a quantity change'); if (!reason) return toast('A reason is required');
-  if (type === 'restock' && d < 0) return toast('A restock must be positive — use Correction to remove stock');
-  const { error } = await sb.rpc('adjust_stock', { p_product_id: adjProduct.id, p_delta: d, p_type: type, p_reason: reason });
+async function openAdjust(p) {
+  const v = await ask(`${p.name} — stock ${p.stock_quantity}`, [
+    { k: 'type', label: 'Type', type: 'select', options: [['restock', 'Restock (stock received, no supplier record)'], ['manual_adjustment', 'Correction (count / damaged / lost)']] },
+    { k: 'qty', label: 'Quantity change (+ add, − remove)', type: 'number', req: true },
+    { k: 'reason', label: 'Reason', req: true }]);
+  if (!v) return;
+  const d = parseInt(v.qty, 10);
+  if (!d) return toast('Enter a quantity change');
+  if (v.type === 'restock' && d < 0) return toast('A restock must be positive — use Correction to remove stock');
+  const { error } = await sb.rpc('adjust_stock', { p_product_id: p.id, p_delta: d, p_type: v.type, p_reason: v.reason });
   if (error) return fail(error);
-  $('adjDlg').close(); toast('Stock updated'); loadProducts();
-};
+  toast('Stock updated'); loadProducts();
+}
+const csvDown = (lines, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' })); a.download = name; a.click(); };
+const csvQ = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+$('pCsv').onclick = () => csvDown([['title', 'author', 'publisher', 'barcode', 'shelf', 'category', 'cost', 'price', 'stock', 'reorder_at', 'hidden'].join(','),
+  ...products.map(p => [p.name, p.author, p.publisher, p.barcode, p.shelf, cats.find(c => c.id === p.category_id)?.name, p.purchase_price, p.selling_price, p.stock_quantity, reorderAt(p), p.active === false ? 'yes' : ''].map(csvQ).join(','))], `books_${ymd(new Date())}.csv`);
 
 // ---------- receipts ----------
-const today = ymd(new Date()); $('rFrom').value = $('rTo').value = today; $('dTo').value = today; $('dFrom').value = today;
+const today = ymd(new Date()); $('rFrom').value = $('rTo').value = today; $('dTo').value = today; $('dFrom').value = today; $('xDate').value = today;
+$('xTo').value = today; $('xFrom').value = today.slice(0, 8) + '01';
 async function fetchTx(fromS, toS) {
   const from = dayStart(fromS), to = new Date(dayStart(toS).getTime() + 864e5);
   const { data, error } = await sb.from('transactions').select(TX_SEL).gte('created_at', from.toISOString()).lt('created_at', to.toISOString()).order('created_at', { ascending: false });
@@ -417,51 +581,184 @@ async function fetchTx(fromS, toS) {
 }
 async function loadReceipts() {
   const data = lastReceipts = await fetchTx($('rFrom').value || today, $('rTo').value || today);
-  $('rSum').textContent = `${data.length} receipts · ${money(data.reduce((s, t) => s + Number(t.total_amount), 0))} ${CUR}`;
-  $('rList').innerHTML = data.map(t => `<details><summary>${fmtDT(t.created_at)} — <b>${money(t.total_amount)}</b> <span class="pill">${h(t.payment_method)}</span> <span class="mute">#${t.id.slice(0, 8)}</span></summary>
-    <table>${t.transaction_items.map(l => `<tr><td>${h(l.products?.name)}</td><td>${l.quantity} × ${money(l.unit_price)}</td><td class="r">${money(l.total_price)}</td></tr>`).join('')}</table>
-    <button class="btn alt sm" data-reprint="${t.id}">🖨 Reprint</button></details>`).join('') || '<div class="mute">No receipts in this period</div>';
+  const net = data.reduce((s, t) => s + Number(t.total_amount) - Number(t.refunded_total || 0), 0);
+  $('rSum').textContent = `${data.length} receipts · ${money(net)} ${CUR} net`;
+  $('rList').innerHTML = data.map(t => `<details><summary>${fmtDT(t.created_at)} — <b>${money(t.total_amount)}</b> <span class="pill">${h(t.payment_method)}</span> <span class="mute">${rno(t)}${names[t.cashier_id] ? ' · ' + h(names[t.cashier_id]) : ''}</span>
+    ${Number(t.discount) > 0 ? `<span class="pill ok">discount ${money(t.discount)}</span>` : ''}${Number(t.refunded_total) > 0 ? ` <span class="pill bad">refunded ${money(t.refunded_total)}</span>` : ''}</summary>
+    <table>${t.transaction_items.map(l => `<tr><td>${h(l.products?.name)}</td><td>${l.quantity} × ${money(l.unit_price)}${l.refunded_qty ? ` <span class="bad">(${l.refunded_qty} returned)</span>` : ''}</td><td class="r">${money(l.total_price)}</td></tr>`).join('')}</table>
+    <div class="row"><button class="btn alt sm" data-reprint="${t.id}">🖨 Reprint</button>${isAdmin ? `<button class="btn alt sm" data-refund="${t.id}">↩ Return / refund</button>` : ''}</div></details>`).join('') || '<div class="mute">No receipts in this period</div>';
 }
 $('rLoad').onclick = loadReceipts;
-$('rList').onclick = e => { const id = e.target.dataset.reprint; if (id) printHtml(receiptHtml(lastReceipts.find(t => t.id === id))); };
+$('rList').onclick = async e => {
+  const d = e.target.dataset;
+  if (d.reprint) printHtml(receiptHtml(lastReceipts.find(t => t.id === d.reprint)));
+  if (d.refund) {
+    const t = lastReceipts.find(x => x.id === d.refund), lines = t.transaction_items.filter(l => l.quantity - l.refunded_qty > 0);
+    if (!lines.length) return toast('Everything on this receipt was already returned');
+    const v = await ask(`Return on ${rno(t)}`, [{ k: 'x', type: 'note', html: 'Enter how many of each book come back. They go back into stock and the customer is refunded what they paid (after any discount).' },
+      ...lines.map(l => ({ k: l.id, label: `${l.products?.name} — sold ${l.quantity}, returnable ${l.quantity - l.refunded_qty}`, type: 'number', value: 0, max: l.quantity - l.refunded_qty })),
+      { k: 'reason', label: 'Reason (optional)' }], 'Refund');
+    if (!v) return;
+    const items = lines.map(l => ({ transaction_item_id: l.id, quantity: parseInt(v[l.id], 10) || 0 })).filter(i => i.quantity > 0);
+    if (!items.length) return toast('Nothing to return');
+    const { error } = await sb.rpc('refund_sale', { p_tx: t.id, p_items: items, p_reason: v.reason || null });
+    if (error) return fail(error, 'Refund failed');
+    toast('Return recorded — stock updated'); loadReceipts(); loadProducts();
+  }
+};
 $('rCsv').onclick = () => {
   if (!lastReceipts.length) return toast('Load receipts first');
-  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = [['receipt', 'date', 'payment', 'product', 'qty', 'unit_price', 'line_total'].join(',')];
-  lastReceipts.forEach(t => t.transaction_items.forEach(l => lines.push([t.id.slice(0, 8), t.created_at, t.payment_method, l.products?.name, l.quantity, l.unit_price, l.total_price].map(q).join(','))));
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })); a.download = `receipts_${$('rFrom').value}_${$('rTo').value}.csv`; a.click();
+  const lines = [['receipt', 'date', 'payment', 'discount', 'book', 'qty', 'unit_price', 'line_total'].join(',')];
+  lastReceipts.forEach(t => t.transaction_items.forEach(l => lines.push([rno(t), t.created_at, t.payment_method, t.discount, l.products?.name, l.quantity, l.unit_price, l.total_price].map(csvQ).join(','))));
+  csvDown(lines, `receipts_${$('rFrom').value}_${$('rTo').value}.csv`);
 };
 
 // ---------- dashboard (admin) ----------
-document.querySelectorAll('[data-range]').forEach(b => b.onclick = () => { const n = +b.dataset.range, t = new Date(), f = new Date(t.getTime() - n * 864e5); $('dFrom').value = ymd(f); $('dTo').value = ymd(t); loadDash(); });
+document.querySelectorAll('[data-range]').forEach(b => b.onclick = () => {
+  const t = new Date();
+  if (b.dataset.range === 'month') $('dFrom').value = ymd(new Date(t.getFullYear(), t.getMonth(), 1));
+  else $('dFrom').value = ymd(new Date(t.getTime() - +b.dataset.range * 864e5));
+  $('dTo').value = ymd(t); loadDash();
+});
 $('dFrom').onchange = $('dTo').onchange = () => loadDash();
+let lastReorder = [];
+const pctChg = (c, p, goodUp = true) => {
+  if (!p) return c ? '<span class="mute">new</span>' : '<span class="mute">—</span>';
+  const v = Math.round((c - p) / Math.abs(p) * 100); if (!v) return '<span class="mute">no change</span>';
+  return `<span class="${(v > 0) === goodUp ? 'ok' : 'bad'}">${v > 0 ? '▲' : '▼'} ${Math.abs(v)}%</span> <span class="mute">vs previous period</span>`;
+};
 async function loadDash() {
   if (!isAdmin) return;
   const fromS = $('dFrom').value || today, toS = $('dTo').value || today;
-  const tx = await fetchTx(fromS, toS);
-  let revenue = 0, units = 0, cost = 0; const per = {}, top = {};
-  const days = Math.round((dayStart(toS) - dayStart(fromS)) / 864e5) + 1, hourly = days === 1;
-  tx.forEach(t => {
-    revenue += Number(t.total_amount);
-    const d = new Date(t.created_at), k = hourly ? d.getHours() : ymd(d); per[k] = (per[k] || 0) + Number(t.total_amount);
-    t.transaction_items.forEach(l => {
-      units += l.quantity; cost += l.quantity * Number(l.products?.purchase_price || 0);
-      const n = l.products?.name || 'Deleted product'; top[n] = top[n] || { q: 0, r: 0 }; top[n].q += l.quantity; top[n].r += Number(l.total_price);
-    });
-  });
-  const profit = revenue - cost;
-  $('kpis').innerHTML = [['Revenue', money(revenue) + ' ' + CUR], ['Receipts', tx.length], ['Units sold', units], ['Avg. receipt', tx.length ? money(revenue / tx.length) : '—'],
-    ['Est. profit', money(profit) + ' ' + CUR]].map(([l, v]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
-  const keys = hourly ? [...Array(24).keys()] : Array.from({ length: Math.min(days, 92) }, (_, i) => ymd(new Date(dayStart(fromS).getTime() + i * 864e5)));
-  const max = Math.max(1, ...keys.map(k => per[k] || 0));
-  $('chartTitle').textContent = hourly ? 'Revenue per hour' : 'Revenue per day';
-  $('chart').innerHTML = tx.length ? `<div class="bars">${keys.map(k => `<div title="${hourly ? k + ':00' : k}: ${money(per[k] || 0)}" style="height:${((per[k] || 0) / max) * 100}%"></div>`).join('')}</div>
-    <div class="barlbl">${keys.map((k, i) => `<span>${keys.length > 14 && i % Math.ceil(keys.length / 10) ? '' : hourly ? k : k.slice(8)}</span>`).join('')}</div>` : '<div class="mute">No sales in this period</div>';
-  const t = Object.entries(top).sort((a, b) => b[1].r - a[1].r);
-  $('topList').innerHTML = t.length ? `<table><tr><th>Product</th><th class="r">Units</th><th class="r">Revenue</th></tr>${t.map(([n, v]) => `<tr><td>${h(n)}</td><td class="r">${v.q}</td><td class="r">${money(v.r)}</td></tr>`).join('')}</table>` : '<div class="mute">—</div>';
-  const low = products.filter(p => p.stock_quantity <= LOW).sort((a, b) => a.stock_quantity - b.stock_quantity);
-  $('lowList').innerHTML = low.length ? `<table>${low.map(p => `<tr><td>${h(p.name)}</td><td class="r ${p.stock_quantity <= 0 ? 'bad' : 'warn'}">${p.stock_quantity}</td></tr>`).join('')}</table>` : '<div class="ok">All products are well stocked</div>';
+  const { data: s, error } = await sb.rpc('dashboard_stats', { p_from: fromS, p_to: toS });
+  if (error) return fail(error, 'Dashboard');
+  const c = s.current, p = s.previous, num = x => Number(x || 0);
+  const avg = o => num(o.orders) ? num(o.revenue) / num(o.orders) : 0;
+  $('kpis').innerHTML = [
+    ['Revenue (net of returns)', money(c.revenue) + ' ' + CUR, pctChg(num(c.revenue), num(p.revenue))],
+    ['Receipts', c.orders, pctChg(num(c.orders), num(p.orders))],
+    ['Average receipt', money(avg(c)), pctChg(avg(c), avg(p))],
+    ['Gross profit', money(c.gross_profit) + ' ' + CUR, pctChg(num(c.gross_profit), num(p.gross_profit))],
+    ['Expenses', money(c.expenses) + ' ' + CUR, pctChg(num(c.expenses), num(p.expenses), false)],
+    ['Net profit', `<span class="${num(c.net_profit) < 0 ? 'bad' : ''}">${money(c.net_profit)} ${CUR}</span>`, pctChg(num(c.net_profit), num(p.net_profit))],
+    ['Discounts given', money(c.discounts) + ' ' + CUR, ''], ['Refunds', money(c.refunds) + ' ' + CUR, ''],
+  ].map(([l, v, d]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
+
+  const days = s.series.length, hourly = days === 1;
+  if (hourly) {
+    const tx = await fetchTx(fromS, toS), per = {}; tx.forEach(t => { const k = new Date(t.created_at).getHours(); per[k] = (per[k] || 0) + Number(t.total_amount); });
+    drawBars([...Array(24).keys()].map(k => [k + ':00', per[k] || 0, String(k)]), 'Revenue per hour');
+  } else drawBars(s.series.map(r => [r.day, num(r.revenue), r.day.slice(8)]), 'Revenue per day');
+
+  $('topList').innerHTML = s.top_products.length ? `<table><tr><th>Book</th><th class="r">Sold</th><th class="r">Sales</th><th class="r">Profit</th></tr>${s.top_products.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r">${r.qty}</td><td class="r">${money(r.sales)}</td><td class="r ${num(r.profit) < 0 ? 'bad' : ''}">${money(r.profit)}</td></tr>`).join('')}</table>` : '<div class="mute">No sales in this period</div>';
+  lastReorder = s.reorder;
+  $('reorderList').innerHTML = s.reorder.length ? `<table><tr><th>Book</th><th class="r">Left</th><th class="r">Sold 30d</th><th class="r">Order</th><th></th></tr>${s.reorder.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r ${r.stock <= 0 ? 'bad' : 'warn'}">${r.stock}</td><td class="r">${r.sold_30d}</td><td class="r"><b>${r.suggested}</b></td><td><button class="btn alt sm" data-ro="${r.id}">+ Purchase</button></td></tr>`).join('')}</table>` : '<div class="ok">Everything is above its reorder level ✓</div>';
+  $('deadList').innerHTML = s.dead_stock.length ? `<table><tr><th>Book</th><th class="r">Copies</th><th class="r">Tied up (cost)</th></tr>${s.dead_stock.map(r => `<tr><td>${h(r.name)}<div class="mute">${h(r.author || '')}</div></td><td class="r">${r.stock}</td><td class="r">${money(r.tied_up)}</td></tr>`).join('')}</table>` : '<div class="ok">Nothing stuck — every book sold in the last 60 days ✓</div>';
+  const iv = s.inventory;
+  $('invBox').innerHTML = `<div class="sum"><span>Titles</span><b>${iv.titles}</b></div><div class="sum"><span>Copies on shelf</span><b>${iv.units}</b></div><div class="sum"><span>At cost</span><b>${money(iv.cost_value)} ${CUR}</b></div><div class="sum"><span>At selling price</span><b>${money(iv.retail_value)} ${CUR}</b></div><div class="sum ok"><span>Potential gross profit</span><b>${money(num(iv.retail_value) - num(iv.cost_value))} ${CUR}</b></div>`;
+  const rows = (arr, a) => arr.length ? arr.map(r => `<tr><td>${h(r[a])}</td><td class="r">${r.orders}</td><td class="r">${money(r.total)}</td></tr>`).join('') : '<tr><td class="mute" colspan=3>—</td></tr>';
+  $('splitBox').innerHTML = `<table><tr><th>Payment</th><th class="r">Receipts</th><th class="r">Total</th></tr>${rows(s.by_payment, 'method')}<tr><th>Cashier</th><th class="r">Receipts</th><th class="r">Total</th></tr>${rows(s.by_cashier, 'name')}</table>`;
 }
+function drawBars(pts, title) {
+  const max = Math.max(1, ...pts.map(p => p[1])), n = pts.length;
+  $('chartTitle').textContent = title;
+  $('chart').innerHTML = pts.some(p => p[1] > 0) ? `<div class="bars">${pts.map(p => `<div title="${p[0]}: ${money(p[1])}" style="height:${p[1] / max * 100}%"></div>`).join('')}</div>
+    <div class="barlbl">${pts.map((p, i) => `<span>${n > 14 && i % Math.ceil(n / 10) ? '' : p[2]}</span>`).join('')}</div>` : '<div class="mute">No sales in this period</div>';
+}
+function draftAdd(p, q) {
+  const l = draft.find(x => x.p.id === p.id); if (l) l.q += q; else draft.push({ p, q, cost: Number(p.purchase_price) });
+}
+$('reorderList').onclick = e => { const id = e.target.dataset.ro; if (!id) return; const r = lastReorder.find(x => x.id === id), p = products.find(x => x.id === id); if (p) { draftAdd(p, r.suggested); toast(`Added ${r.suggested} × ${p.name} to the purchase draft`); } };
+$('reorderAll').onclick = () => { if (!lastReorder.length) return; lastReorder.forEach(r => { const p = products.find(x => x.id === r.id); if (p) draftAdd(p, r.suggested); }); showTab('buy'); };
+
+// ---------- purchases (admin) ----------
+async function loadBuy() {
+  await loadSuppliers(); renderDraft();
+  $('supList').innerHTML = suppliers.length ? `<table>${suppliers.map(s => `<tr><td>${h(s.name)}<div class="mute">${h(s.phone || '')} ${h(s.notes || '')}</div></td><td class="r"><button class="btn alt sm" data-sdel="${s.id}">Delete</button></td></tr>`).join('')}</table>` : '<div class="mute">No suppliers yet — add one with “+ Supplier”.</div>';
+  const { data, error } = await sb.from('purchases').select('*, suppliers(name), purchase_items(quantity, unit_cost, products(name))').order('created_at', { ascending: false }).limit(30);
+  if (error) return fail(error, 'Purchases');
+  $('bHist').innerHTML = data.length ? data.map(b => `<details><summary>${fmtDT(b.created_at)} — <b>${money(b.total_cost)}</b> <span class="mute">${h(b.suppliers?.name || 'No supplier')}${b.note ? ' · ' + h(b.note) : ''}</span></summary>
+    <table>${b.purchase_items.map(l => `<tr><td>${h(l.products?.name)}</td><td class="r">${l.quantity} × ${money(l.unit_cost)}</td></tr>`).join('')}</table></details>`).join('') : '<div class="mute">No purchases recorded yet</div>';
+}
+$('addSupplier').onclick = async () => {
+  const v = await ask('New supplier', [{ k: 'name', label: 'Name', req: true }, { k: 'phone', label: 'Phone' }, { k: 'notes', label: 'Notes' }]); if (!v) return;
+  const { error } = await sb.from('suppliers').insert({ name: v.name, phone: v.phone || null, notes: v.notes || null });
+  if (error) return toast(error.code === '23505' ? 'A supplier with this name exists' : error.message);
+  await loadBuy(); toast('Supplier added');
+};
+$('supList').onclick = async e => {
+  const id = e.target.dataset.sdel; if (!id || !confirm('Delete this supplier? Past purchases are kept.')) return;
+  const { error } = await sb.from('suppliers').delete().eq('id', id); if (error) return fail(error); loadBuy();
+};
+$('bSearch').onkeydown = e => {
+  if (e.key !== 'Enter') return;
+  const q = $('bSearch').value.trim(), ex = products.find(p => p.barcode === q);
+  if (ex) { draftAdd(ex, 1); $('bSearch').value = ''; $('bRes').innerHTML = ''; renderDraft(); }
+};
+$('bSearch').oninput = () => {
+  const q = $('bSearch').value.toLowerCase().trim(), r = q ? products.filter(p => matches(p, q)).slice(0, 8) : [];
+  $('bRes').innerHTML = r.map(p => `<div class="row"><span style="flex:1">${h(p.name)} <span class="mute">${h(p.author || '')} · ${p.stock_quantity} in stock</span></span><button class="btn alt sm" data-badd="${p.id}">Add</button></div>`).join('');
+};
+$('bRes').onclick = e => { const id = e.target.dataset.badd; if (!id) return; draftAdd(products.find(p => p.id === id), 1); $('bSearch').value = ''; $('bRes').innerHTML = ''; renderDraft(); };
+function renderDraft() {
+  const total = draft.reduce((s, l) => s + l.q * l.cost, 0);
+  $('bRows').innerHTML = draft.length ? `<table><tr><th>Book</th><th class="r">Qty</th><th class="r">Unit cost</th><th class="r">Total</th><th></th></tr>${draft.map((l, i) => `<tr><td>${h(l.p.name)}<div class="mute">now ${l.p.stock_quantity} in stock</div></td>
+    <td><input type="number" min="1" data-q="${i}" value="${l.q}" style="width:80px"></td><td><input type="number" min="0" step="0.01" data-c="${i}" value="${l.cost}" style="width:100px"></td>
+    <td class="r">${money(l.q * l.cost)}</td><td><button class="btn alt sm" data-x="${i}">✕</button></td></tr>`).join('')}
+    <tr><td colspan=3 class="r"><b>Total</b></td><td class="r"><b>${money(total)} ${CUR}</b></td><td></td></tr></table>` : '<div class="mute">Draft is empty. Add books above, or use “Add all to purchase” on the Dashboard.</div>';
+  $('bSave').disabled = !draft.length;
+}
+$('bRows').onchange = e => {
+  const d = e.target.dataset;
+  if (d.q != null) draft[d.q].q = Math.max(1, parseInt(e.target.value, 10) || 1);
+  if (d.c != null) draft[d.c].cost = Math.max(0, parseFloat(e.target.value) || 0);
+  renderDraft();
+};
+$('bRows').onclick = e => { const i = e.target.dataset.x; if (i != null) { draft.splice(i, 1); renderDraft(); } };
+$('bSave').onclick = async () => {
+  $('bSave').disabled = true;
+  const { error } = await sb.rpc('receive_purchase', { p_supplier: $('bSupplier').value || null, p_items: draft.map(l => ({ product_id: l.p.id, quantity: l.q, unit_cost: l.cost })), p_note: $('bNote').value.trim() || null });
+  if (error) { $('bSave').disabled = false; return fail(error, 'Could not receive stock'); }
+  draft = []; $('bNote').value = ''; toast('Stock received and costs updated'); await loadProducts(); loadBuy();
+};
+
+// ---------- expenses & shifts (admin) ----------
+async function loadExpenses() {
+  const { data, error } = await sb.from('expenses').select('*').gte('spent_on', $('xFrom').value).lte('spent_on', $('xTo').value).order('spent_on', { ascending: false });
+  if (error) return fail(error, 'Expenses');
+  $('xSum').textContent = `${data.length} entries · ${money(data.reduce((s, x) => s + Number(x.amount), 0))} ${CUR}`;
+  $('xList').innerHTML = data.length ? `<table><tr><th>Date</th><th>Category</th><th>Note</th><th class="r">Amount</th><th></th></tr>${data.map(x => `<tr><td>${x.spent_on}</td><td>${h(x.category)}</td><td class="mute">${h(x.note)}</td><td class="r">${money(x.amount)}</td><td class="r"><button class="btn alt sm" data-xdel="${x.id}">✕</button></td></tr>`).join('')}</table>` : '<div class="mute">No expenses in this period</div>';
+}
+$('xLoad').onclick = loadExpenses;
+$('xAdd').onclick = async () => {
+  const amount = parseFloat($('xAmt').value); if (!(amount > 0)) return toast('Enter an amount');
+  const { error } = await sb.from('expenses').insert({ category: $('xCat').value, amount, note: $('xNote').value.trim() || null, spent_on: $('xDate').value || today, created_by: user.id });
+  if (error) return fail(error); $('xAmt').value = ''; $('xNote').value = ''; toast('Expense added'); loadExpenses();
+};
+$('xList').onclick = async e => { const id = e.target.dataset.xdel; if (!id || !confirm('Delete this expense?')) return; const { error } = await sb.from('expenses').delete().eq('id', id); if (error) return fail(error); loadExpenses(); };
+async function loadShifts() {
+  const { data, error } = await sb.from('shifts').select('*').order('opened_at', { ascending: false }).limit(30);
+  if (error) return fail(error, 'Shifts');
+  $('shList').innerHTML = data.length ? `<table><tr><th>Cashier</th><th>Opened</th><th>Closed</th><th class="r">Opening</th><th class="r">Expected</th><th class="r">Counted</th><th class="r">Difference</th></tr>${data.map(s => `<tr><td>${h(names[s.cashier_id] || 'Staff')}</td><td>${fmtDT(s.opened_at)}</td><td>${s.closed_at ? fmtDT(s.closed_at) : '<span class="warn">open</span>'}</td><td class="r">${money(s.opening_cash)}</td><td class="r">${s.closed_at ? money(s.expected_cash) : ''}</td><td class="r">${s.closed_at ? money(s.counted_cash) : ''}</td><td class="r ${Number(s.difference) === 0 ? 'ok' : 'bad'}">${s.closed_at ? (Number(s.difference) > 0 ? '+' : '') + money(s.difference) : ''}</td></tr>`).join('')}</table>` : '<div class="mute">No shifts yet</div>';
+}
+
+// ---------- staff (admin) ----------
+async function loadStaff() {
+  const { data, error } = await sb.rpc('list_staff'); if (error) return fail(error, 'Staff');
+  $('staffList').innerHTML = `<table><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>${data.map(s => `<tr><td>${h(s.full_name || '—')}</td><td class="mute">${h(s.email)}</td><td>${s.role}</td><td class="${s.active ? 'ok' : 'bad'}">${s.active ? 'active' : 'disabled'}</td>
+    <td class="r" style="white-space:nowrap">${s.id === user.id ? '<span class="mute">you</span>' : `<button class="btn alt sm" data-role="${s.id}" data-r="${s.role === 'admin' ? 'cashier' : 'admin'}" data-a="${s.active}">Make ${s.role === 'admin' ? 'cashier' : 'admin'}</button> <button class="btn alt sm" data-role="${s.id}" data-r="${s.role}" data-a="${!s.active}">${s.active ? 'Disable' : 'Enable'}</button>`}</td></tr>`).join('')}</table>`;
+}
+$('staffList').onclick = async e => {
+  const d = e.target.dataset; if (!d.role) return;
+  const { error } = await sb.rpc('set_staff', { p_id: d.role, p_role: d.r, p_active: d.a === 'true' }); if (error) return fail(error); loadStaff(); loadNames();
+};
+$('newStaff').onclick = async () => {
+  const v = await ask('Add staff account', [{ k: 'name', label: 'Full name', req: true }, { k: 'email', label: 'Email', type: 'email', req: true },
+    { k: 'pass', label: 'Password (min 8 characters)', type: 'password', req: true }, { k: 'role', label: 'Role', type: 'select', options: [['cashier', 'Cashier'], ['admin', 'Admin']] }], 'Create');
+  if (!v) return;
+  const { error } = await sb.rpc('create_staff', { p_email: v.email, p_password: v.pass, p_name: v.name, p_role: v.role }); if (error) return fail(error, 'Could not create');
+  toast('Account created — they can sign in now'); loadStaff(); loadNames();
+};
 
 // ---------- stock log (admin) ----------
 async function loadLogs() {
@@ -469,8 +766,8 @@ async function loadLogs() {
   let q = sb.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(200);
   if ($('lType').value) q = q.eq('change_type', $('lType').value);
   const { data, error } = await q; if (error) return fail(error, 'Log');
-  $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Product</th><th>Type</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
-    ${data.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${h(l.products?.name)}</td><td>${h(l.change_type.replace('_', ' '))}</td><td class="r ${l.quantity_changed < 0 ? 'bad' : 'ok'}">${l.quantity_changed > 0 ? '+' : ''}${l.quantity_changed}</td>
+  $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Book</th><th>Type</th><th>By</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
+    ${data.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${h(l.products?.name)}</td><td>${h(l.change_type.replace('_', ' '))}</td><td class="mute">${h(names[l.performed_by] || '')}</td><td class="r ${l.quantity_changed < 0 ? 'bad' : 'ok'}">${l.quantity_changed > 0 ? '+' : ''}${l.quantity_changed}</td>
     <td class="r">${l.previous_stock} → ${l.new_stock}</td><td class="mute">${h(l.reason)}</td></tr>`).join('')}</table>` : '<div class="mute">No stock movements yet</div>';
 }
 $('lLoad').onclick = $('lType').onchange = loadLogs;
