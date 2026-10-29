@@ -78,6 +78,7 @@
   <nav id="tabs">
     <button data-t="sell" class="on">Sell</button>
     <button data-t="products">Items</button>
+    <button data-t="inventory" class="adm">Inventory</button>
     <button data-t="receipts">Receipts</button>
     <button data-t="dash" class="adm">Dashboard</button>
     <button data-t="buy" class="adm">Purchases</button>
@@ -139,8 +140,7 @@
         <div class="row">
           <input id="pBuy" type="number" step="0.01" min="0" placeholder="Purchase price">
           <input id="pSell" type="number" step="0.01" min="0" placeholder="Selling price">
-          <input id="pStock" type="number" min="0" placeholder="Initial stock">
-          <input id="pReorder" type="number" min="0" placeholder="Reorder at (default 5)">
+          <input id="pStock" type="number" min="0" placeholder="Opening stock (optional)">
           <select id="pCat"><option value="">No category</option></select>
         </div>
         <div class="row"><label class="fl" style="flex:1;margin:0">Photo (optional) — take a picture or choose a file<input id="pPhoto" type="file" accept="image/*"></label>
@@ -151,7 +151,7 @@
       <div class="card adm hidden" id="catCard"><h2>Categories <span class="mute" style="font-weight:400">— add, rename or remove any time</span></h2><div id="catList"></div></div>
       <div class="card">
         <div class="row"><input id="pSearch" type="text" placeholder="Filter by name, brand, details, barcode or shelf"><select id="pCatFilter" style="max-width:200px"><option value="">All categories</option></select>
-          <label class="fix"><input type="checkbox" id="lowOnly"> Low stock</label><label class="fix adm hidden"><input type="checkbox" id="showHidden"> Show hidden</label>
+          <label class="fix adm hidden"><input type="checkbox" id="showHidden"> Show hidden</label>
           <button class="btn alt sm adm hidden" id="pCsv">Export CSV</button></div>
         <div id="prodList"></div>
       </div>
@@ -219,10 +219,22 @@
       <div class="card"><h2>Staff accounts <button class="btn sm" id="newStaff" style="float:right">+ Add staff</button></h2><div id="staffList"></div></div>
     </section>
 
+    <!-- INVENTORY (admin) -->
+    <section id="t-inventory" class="hidden">
+      <div id="invKpis" class="kpis"></div>
+      <div class="card">
+        <div class="row"><input id="iSearch" type="text" placeholder="Find an item, brand, barcode or shelf"><select id="iCat" style="max-width:200px"><option value="">All categories</option></select>
+          <select id="iStatus" style="max-width:190px"><option value="">All stock levels</option><option value="low">Low &amp; out of stock</option><option value="out">Out of stock</option><option value="ok">Well stocked</option></select>
+          <button class="btn alt sm" id="iCsv">Export CSV</button></div>
+        <div class="mute" style="margin-bottom:8px">Stock levels live here. Item details (name, photo, price, category) are on the Items tab.</div>
+        <div id="invList"></div>
+      </div>
+    </section>
+
     <!-- LOGS -->
     <section id="t-logs" class="hidden">
       <div class="card">
-        <div class="row"><select id="lType" style="max-width:220px"><option value="">All movements</option><option value="sale">Sales</option><option value="purchase">Purchases</option><option value="return">Returns</option><option value="restock">Restocks</option><option value="manual_adjustment">Manual adjustments</option></select><button class="btn alt" id="lLoad">Refresh</button></div>
+        <div class="row"><select id="lType" style="max-width:220px"><option value="">All movements</option><option value="sale">Sales</option><option value="purchase">Purchases</option><option value="return">Returns</option><option value="restock">Restocks</option><option value="manual_adjustment">Manual adjustments</option></select><button class="btn alt" id="lLoad">Refresh</button><span id="lFilter"></span></div>
         <div id="logList"></div>
       </div>
     </section>
@@ -326,13 +338,13 @@ function startRealtime() {
 }
 
 // ---------- tabs ----------
-const TABS = ['sell', 'products', 'receipts', 'dash', 'buy', 'money', 'staff', 'logs'];
+const TABS = ['sell', 'products', 'inventory', 'receipts', 'dash', 'buy', 'money', 'staff', 'logs'];
 const currentTab = () => document.querySelector('#tabs button.on').dataset.t;
 function showTab(t) {
   if (t !== 'sell') stopCam();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   TABS.forEach(x => $('t-' + x).classList.toggle('hidden', x !== t));
-  if (t === 'products') loadProducts(); if (t === 'receipts') loadReceipts(); if (t === 'dash') loadDash();
+  if (t === 'products') loadProducts(); if (t === 'inventory') { logProduct = null; renderInventory(); } if (t === 'receipts') loadReceipts(); if (t === 'dash') loadDash();
   if (t === 'buy') loadBuy(); if (t === 'money') { loadExpenses(); loadShifts(); } if (t === 'staff') loadStaff(); if (t === 'logs') loadLogs();
   if (t === 'sell') { loadShift(); $('code').focus(); }
 }
@@ -349,7 +361,7 @@ async function loadCats() {
 async function loadProducts() {
   const { data, error } = await sb.from('products').select('*').order('name');
   if (error) return fail(error, 'Items');
-  products = data; renderProducts(); renderCatList();
+  products = data; renderProducts(); renderCatList(); if (isAdmin && currentTab() === 'inventory') renderInventory();
   cart.forEach(c => { const p = products.find(x => x.id === c.p.id); if (p) c.p = p; }); renderCart();
 }
 async function loadNames() { const { data } = await sb.from('profiles').select('id, full_name'); names = Object.fromEntries((data || []).map(p => [p.id, p.full_name || 'Staff'])); }
@@ -652,18 +664,18 @@ $('camFile').onchange = async () => {
 
 // ---------- items & categories ----------
 function renderProducts() {
-  const q = $('pSearch').value.toLowerCase().trim(), cf = $('pCatFilter').value, low = $('lowOnly').checked, hid = $('showHidden').checked;
-  const list = products.filter(p => (!q || matches(p, q)) && (!cf || p.category_id === cf) && (!low || isLow(p)) && (hid || p.active !== false));
+  const q = $('pSearch').value.toLowerCase().trim(), cf = $('pCatFilter').value, hid = $('showHidden').checked;
+  const list = products.filter(p => (!q || matches(p, q)) && (!cf || p.category_id === cf) && (hid || p.active !== false));
   const cn = id => cats.find(c => c.id === id)?.name || '';
   const margin = p => p.selling_price > 0 ? Math.round((p.selling_price - p.purchase_price) / p.selling_price * 100) + '%' : '';
-  $('prodList').innerHTML = list.length ? `<table><tr><th>Item</th><th>Barcode</th><th>Shelf</th><th>Category</th>${isAdmin ? '<th class="r">Cost</th>' : ''}<th class="r">Price</th>${isAdmin ? '<th class="r">Margin</th>' : ''}<th class="r">Stock</th>${isAdmin ? '<th></th>' : ''}</tr>
+  $('prodList').innerHTML = list.length ? `<table><tr><th>Item</th><th>Barcode</th><th>Shelf</th><th>Category</th>${isAdmin ? '<th class="r">Cost</th>' : ''}<th class="r">Price</th>${isAdmin ? '<th class="r">Margin</th>' : ''}${isAdmin ? '' : '<th class="r">Stock</th>'}${isAdmin ? '<th></th>' : ''}</tr>
     ${list.map(p => `<tr style="${p.active === false ? 'opacity:.5' : ''}"><td style="white-space:nowrap">${thumb(p)} <span style="display:inline-block;vertical-align:middle;white-space:normal">${h(p.name)}${p.active === false ? ' <span class="pill">hidden</span>' : ''}<div class="mute">${h(sub(p))}</div></span></td><td class="mute">${h(p.barcode)}</td><td class="mute">${h(p.shelf)}</td><td class="mute">${h(cn(p.category_id))}</td>
     ${isAdmin ? `<td class="r mute">${money(p.purchase_price)}</td>` : ''}<td class="r">${money(p.selling_price)}</td>${isAdmin ? `<td class="r mute">${margin(p)}</td>` : ''}
-    <td class="r ${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : ''}">${p.stock_quantity}</td>
-    ${isAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn alt sm" data-adj="${p.id}">Stock</button> <button class="btn alt sm" data-edit="${p.id}">Edit</button> <button class="btn alt sm" data-hide="${p.id}">${p.active === false ? 'Show' : 'Hide'}</button> <button class="btn alt sm" data-del="${p.id}">Delete</button></td>` : ''}</tr>`).join('')}</table>`
+    ${isAdmin ? '' : `<td class="r ${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : ''}">${p.stock_quantity}</td>`}
+    ${isAdmin ? `<td class="r" style="white-space:nowrap"><button class="btn alt sm" data-edit="${p.id}">Edit</button> <button class="btn alt sm" data-hide="${p.id}">${p.active === false ? 'Show' : 'Hide'}</button> <button class="btn alt sm" data-del="${p.id}">Delete</button></td>` : ''}</tr>`).join('')}</table>`
     : '<div class="mute">No items match. ' + (isAdmin ? 'Add your first one above.' : '') + '</div>';
 }
-['pSearch', 'pCatFilter', 'lowOnly', 'showHidden'].forEach(i => $(i).oninput = renderProducts);
+['pSearch', 'pCatFilter', 'showHidden'].forEach(i => $(i).oninput = renderProducts);
 $('prodList').onclick = async e => {
   const d = e.target.dataset, find = id => products.find(p => p.id === id);
   if (d.adj) openAdjust(find(d.adj));
@@ -677,7 +689,7 @@ $('prodList').onclick = async e => {
     toast('Deleted'); loadProducts();
   }
 };
-const FORM = ['pId', 'pName', 'pBarcode', 'pAuthor', 'pPublisher', 'pShelf', 'pBuy', 'pSell', 'pStock', 'pReorder'];
+const FORM = ['pId', 'pName', 'pBarcode', 'pAuthor', 'pPublisher', 'pShelf', 'pBuy', 'pSell', 'pStock'];
 const thumb = (p, px = 40) => p.cover_url ? `<img class="th" loading="lazy" src="${h(p.cover_url)}" alt="" style="width:${px}px;height:${px}px">` : `<span class="th ph" style="width:${px}px;height:${px}px">📦</span>`;
 let photoBlob = null, photoRemove = false;
 function showPrev(url) { $('pPrev').classList.toggle('hidden', !url); $('pPhotoClear').classList.toggle('hidden', !url); if (url) $('pPrev').src = url; }
@@ -703,7 +715,7 @@ async function uploadPhoto(id) {
 function startEdit(p) {
   photoBlob = null; photoRemove = false; $('pPhoto').value = ''; showPrev(p.cover_url);
   $('formTitle').textContent = 'Edit item'; $('pId').value = p.id; $('pName').value = p.name; $('pBarcode').value = p.barcode;
-  $('pAuthor').value = p.brand || ''; $('pPublisher').value = p.details || ''; $('pShelf').value = p.shelf || ''; $('pReorder').value = p.reorder_level ?? '';
+  $('pAuthor').value = p.brand || ''; $('pPublisher').value = p.details || ''; $('pShelf').value = p.shelf || '';
   $('pBuy').value = p.purchase_price; $('pSell').value = p.selling_price; $('pCat').value = p.category_id || '';
   $('pStock').value = ''; $('pStock').disabled = true; $('pStock').placeholder = 'Use the Stock button';
   $('saveProd').textContent = 'Save changes'; $('cancelEdit').classList.remove('hidden'); window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -719,8 +731,7 @@ $('saveProd').onclick = async () => {
   const buy = parseFloat($('pBuy').value) || 0, sell = parseFloat($('pSell').value), stock = parseInt($('pStock').value, 10) || 0;
   if (!name || !barcode || isNaN(sell) || sell < 0) return toast('Name, barcode and a valid selling price are required');
   const row = { name, barcode, purchase_price: buy, selling_price: sell, category_id: $('pCat').value || null,
-    brand: $('pAuthor').value.trim() || null, details: $('pPublisher').value.trim() || null, shelf: $('pShelf').value.trim() || null,
-    reorder_level: $('pReorder').value === '' ? 5 : Math.max(0, parseInt($('pReorder').value, 10) || 0) };
+    brand: $('pAuthor').value.trim() || null, details: $('pPublisher').value.trim() || null, shelf: $('pShelf').value.trim() || null };
   if (id) {
     const old = products.find(x => x.id === id)?.cover_url;
     if (photoBlob) { const url = await uploadPhoto(id); if (url) row.cover_url = url; } else if (photoRemove) row.cover_url = null;
@@ -780,6 +791,53 @@ $('catList').onclick = async e => {
     toast('Category deleted'); await Promise.all([loadCats(), loadProducts()]);
   }
 };
+
+// ---------- inventory (admin): stock levels, counts, restocks ----------
+const invStatus = p => p.stock_quantity <= 0 ? 'out' : isLow(p) ? 'low' : 'ok';
+function renderInventory() {
+  if (!isAdmin) return;
+  const act = products.filter(p => p.active !== false);
+  const units = act.reduce((t, p) => t + p.stock_quantity, 0), cost = act.reduce((t, p) => t + p.stock_quantity * Number(p.purchase_price), 0), retail = act.reduce((t, p) => t + p.stock_quantity * Number(p.selling_price), 0);
+  const low = act.filter(p => invStatus(p) === 'low').length, out = act.filter(p => invStatus(p) === 'out').length;
+  $('invKpis').innerHTML = [['Items stocked', act.length, ''], ['Units on hand', units, ''], ['Stock value (cost)', money(cost) + ' ' + CUR, ''], ['Stock value (selling)', money(retail) + ' ' + CUR, ''],
+    ['Low stock', low, low ? 'warn' : ''], ['Out of stock', out, out ? 'bad' : '']].map(([l, v, c]) => `<div class="card kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`).join('');
+  const keepCat = $('iCat').value; $('iCat').innerHTML = '<option value="">All categories</option>' + cats.map(c => `<option value="${c.id}">${h(c.name)}</option>`).join(''); $('iCat').value = keepCat;
+  const q = $('iSearch').value.toLowerCase().trim(), cf = $('iCat').value, st = $('iStatus').value;
+  const list = act.filter(p => (!q || matches(p, q)) && (!cf || p.category_id === cf) && (!st || (st === 'low' ? invStatus(p) !== 'ok' : invStatus(p) === st)))
+    .sort((a, b) => (invStatus(a) === 'ok') - (invStatus(b) === 'ok') || a.stock_quantity - b.stock_quantity || a.name.localeCompare(b.name));
+  const cn = id => cats.find(c => c.id === id)?.name || '';
+  const pill = p => ({ out: '<span class="pill bad">out</span>', low: '<span class="pill warn">low</span>', ok: '<span class="pill ok">ok</span>' })[invStatus(p)];
+  $('invList').innerHTML = list.length ? `<table><tr><th>Item</th><th>Category</th><th>Shelf</th><th class="r">On hand</th><th class="r">Reorder at</th><th>Status</th><th class="r">Value (cost)</th><th></th></tr>
+    ${list.map(p => `<tr><td style="white-space:nowrap">${thumb(p, 32)} <span style="display:inline-block;vertical-align:middle;white-space:normal">${h(p.name)}<div class="mute">${h(sub(p))}</div></span></td><td class="mute">${h(cn(p.category_id))}</td><td class="mute">${h(p.shelf)}</td>
+    <td class="r ${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : ''}"><b>${p.stock_quantity}</b></td>
+    <td class="r"><input type="number" min="0" data-ro="${p.id}" value="${reorderAt(p)}" style="width:72px;padding:5px 8px" title="Warn when stock falls to this number"></td>
+    <td>${pill(p)}</td><td class="r mute">${money(p.stock_quantity * Number(p.purchase_price))}</td>
+    <td class="r" style="white-space:nowrap"><button class="btn sm" data-iadj="${p.id}">Restock / adjust</button> <button class="btn alt sm" data-icount="${p.id}">Count</button> <button class="btn alt sm" data-ihist="${p.id}">History</button></td></tr>`).join('')}</table>`
+    : '<div class="mute">No items match.</div>';
+}
+['iSearch', 'iCat', 'iStatus'].forEach(i => $(i).oninput = renderInventory);
+$('invList').onchange = async e => {
+  const id = e.target.dataset.ro; if (!id) return;
+  const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+  const { error } = await sb.from('products').update({ reorder_level: v }).eq('id', id); if (error) return fail(error);
+  toast('Reorder level saved'); loadProducts();
+};
+$('invList').onclick = async e => {
+  const d = e.target.dataset, find = id => products.find(p => p.id === id);
+  if (d.iadj) openAdjust(find(d.iadj));
+  if (d.ihist) { logProduct = d.ihist; showTab('logs'); }
+  if (d.icount) {
+    const p = find(d.icount);
+    const v = await ask(`Stock count — ${p.name}`, [{ k: 'x', type: 'note', html: `The system says <b>${p.stock_quantity}</b> on hand. Count what is physically there and enter it; the difference is recorded as a correction.` }, { k: 'n', label: 'Counted quantity', type: 'number', max: 100000, req: true }], 'Save count');
+    if (!v) return;
+    const n = parseInt(v.n, 10); if (isNaN(n) || n < 0) return toast('Enter a valid count');
+    const delta = n - p.stock_quantity; if (!delta) return toast('Count matches the system ✔');
+    const { error } = await sb.rpc('adjust_stock', { p_product_id: p.id, p_delta: delta, p_type: 'manual_adjustment', p_reason: `Stock count: system ${p.stock_quantity}, counted ${n}` });
+    if (error) return fail(error); toast(`Count saved (${delta > 0 ? '+' : ''}${delta})`); loadProducts();
+  }
+};
+$('iCsv').onclick = () => csvDown([['item', 'brand', 'barcode', 'category', 'shelf', 'on_hand', 'reorder_at', 'cost', 'price', 'stock_value_cost'].join(','),
+  ...products.filter(p => p.active !== false).map(p => [p.name, p.brand, p.barcode, cats.find(c => c.id === p.category_id)?.name, p.shelf, p.stock_quantity, reorderAt(p), p.purchase_price, p.selling_price, (p.stock_quantity * p.purchase_price).toFixed(2)].map(csvQ).join(','))], `inventory_${ymd(new Date())}.csv`);
 
 // ---------- receipts ----------
 const today = ymd(new Date()); $('rFrom').value = $('rTo').value = today; $('dTo').value = today; $('dFrom').value = today; $('xDate').value = today;
@@ -972,9 +1030,14 @@ $('newStaff').onclick = async () => {
 };
 
 // ---------- stock log (admin) ----------
+let logProduct = null;
 async function loadLogs() {
   if (!isAdmin) return;
+  const lp = logProduct && products.find(x => x.id === logProduct);
+  $('lFilter').innerHTML = lp ? `<span class="pill">${h(lp.name)} <a href="#" id="lClear">✕ show all</a></span>` : '';
+  if ($('lClear')) $('lClear').onclick = e => { e.preventDefault(); logProduct = null; loadLogs(); };
   let q = sb.from('stock_logs').select('*, products(name)').order('created_at', { ascending: false }).limit(200);
+  if (logProduct) q = q.eq('product_id', logProduct);
   if ($('lType').value) q = q.eq('change_type', $('lType').value);
   const { data, error } = await q; if (error) return fail(error, 'Log');
   $('logList').innerHTML = data.length ? `<table><tr><th>When</th><th>Item</th><th>Type</th><th>By</th><th class="r">Change</th><th class="r">Before → After</th><th>Reason</th></tr>
