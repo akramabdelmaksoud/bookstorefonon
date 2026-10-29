@@ -235,6 +235,7 @@
   <div id="askErr" class="bad"></div>
   <div class="row" style="margin-top:8px"><button class="btn" id="askOk">Save</button><button class="btn alt" id="askCancel">Cancel</button></div>
 </dialog>
+<dialog id="scanDlg"><div id="scanBody"></div></dialog>
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -514,10 +515,11 @@ function printHtml(html) {
 }
 // ---- Camera scanning (html5-qrcode; native BarcodeDetector when available) ----
 const scanners = [];
+let scanBusy = false;
 const stopCam = () => scanners.forEach(x => x.stop());
 let actx = null;
 const beep = (f = 880, d = 0.09) => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; g.gain.value = 0.15; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + d); } catch {} };
-function makeScanner({ mount, prefix: x, btn, startLabel, onStart, onText }) {
+function makeScanner({ mount, prefix: x, btn, startLabel, need = 2, onStart, onText }) {
   $(mount).innerHTML = `<div style="position:relative"><div id="${x}Box" class="hidden" style="width:100%"></div><div id="${x}Flash" class="scanFlash hidden"></div></div>
     <div id="${x}Tools" class="row hidden" style="margin-top:6px"><button class="btn alt sm hidden" id="${x}Torch" type="button">🔦 Light</button><input id="${x}Zoom" class="hidden" type="range" style="max-width:220px" title="Zoom"></div>
     <div id="${x}Msg" class="mute" style="margin:6px 0"></div>`;
@@ -539,10 +541,19 @@ function makeScanner({ mount, prefix: x, btn, startLabel, onStart, onText }) {
       beep(1, 0.001); // unlock audio inside the click
       const F = Html5QrcodeSupportedFormats;
       $(x + 'Box').classList.remove('hidden'); $(btn).textContent = '✖ Stop camera'; say('Starting camera… allow access if the browser asks.');
-      const s1 = new Html5Qrcode(x + 'Box', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], useBarCodeDetectorIfSupported: true, verbose: false });
+      const s1 = new Html5Qrcode(x + 'Box', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.QR_CODE], useBarCodeDetectorIfSupported: true, verbose: false });
       sc = s1;
       const cfg = { fps: 15, disableFlip: true, qrbox: (w, h) => ({ width: Math.floor(w * 0.92), height: Math.floor(Math.min(h * 0.55, 200)) }) };
-      const onOk = text => { const now = Date.now(); if (text === lastText && now - lastAt < 1500) return; lastText = text; lastAt = now; if (navigator.vibrate) navigator.vibrate(50); onText(text, flash); };
+      const votes = {}; // a code counts only after it is read `need` times within 1.5 s: single misreads are dropped
+      const onOk = text => {
+        if (scanBusy) return;
+        const now = Date.now(); for (const k in votes) if (now - votes[k].t > 1500) delete votes[k];
+        const v = votes[text] = { n: (votes[text]?.n || 0) + 1, t: now };
+        if (v.n < need) return;
+        for (const k in votes) delete votes[k];
+        if (text === lastText && now - lastAt < 1500) return;
+        lastText = text; lastAt = now; if (navigator.vibrate) navigator.vibrate(50); onText(text, flash);
+      };
       try {
         try {
           await s1.start({ facingMode: 'environment' }, { ...cfg, videoConstraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] } }, onOk, () => {});
@@ -570,29 +581,58 @@ function makeScanner({ mount, prefix: x, btn, startLabel, onStart, onText }) {
   scanners.push(api); $(btn).onclick = () => api.toggle();
   return api;
 }
-// Selling: look the code up in the already-loaded item list (instant), add or price-check, beep.
-let unknown = { code: '', t: 0 };
+// Selling: look the code up in the already-loaded item list (instant) and ask for confirmation in a pop-up.
+const ed1 = (a, b) => { // true when the strings differ by at most one digit (substitution, insertion or deletion)
+  if (a === b) return true; if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1);
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : b.slice(i + 1) === a.slice(i);
+};
+const near = (reg, code) => !!reg && code.length >= 6 && (ed1(reg, code) || reg.endsWith(code) || code.endsWith(reg));
+let scanItem = null, scanQty = 1;
+const scanShow = html => { $('scanBody').innerHTML = html; if (!$('scanDlg').open) $('scanDlg').showModal(); };
+function confirmItem(p) {
+  scanBusy = true; scanItem = p; scanQty = 1; renderScanItem();
+}
+function renderScanItem() {
+  const p = scanItem, inCart = cart.find(c => c.p.id === p.id)?.q || 0, avail = p.stock_quantity - inCart;
+  scanQty = Math.max(1, Math.min(scanQty, Math.max(avail, 1)));
+  const head = `${p.cover_url ? `<img src="${h(p.cover_url)}" alt="" style="width:100%;max-height:180px;object-fit:contain;border-radius:10px;background:var(--bg);margin-bottom:8px">` : ''}
+    <h2 style="font-size:18px">${h(p.name)}</h2><div class="mute">${h(sub(p))}${p.shelf ? ' · Shelf ' + h(p.shelf) : ''}</div>
+    <div class="big" style="margin:6px 0">${money(p.selling_price)} ${CUR}</div>
+    <div class="${p.stock_quantity <= 0 ? 'bad' : isLow(p) ? 'warn' : 'ok'}">${p.stock_quantity <= 0 ? 'Out of stock' : p.stock_quantity + ' in stock'}${inCart ? ` · ${inCart} already in cart` : ''}</div>`;
+  if (p.active === false) return scanShow(head + '<div class="bad" style="margin:8px 0">This item is hidden and not for sale.</div><div class="row"><button class="btn alt" data-scancel="1">Close</button></div>');
+  if (avail <= 0) return scanShow(head + '<div class="bad" style="margin:8px 0">No more stock available to add.</div><div class="row"><button class="btn alt" data-scancel="1">Close</button></div>');
+  scanShow(head + `<div class="row" style="margin:10px 0;justify-content:center"><button class="btn alt" data-sq="-1">−</button><b style="font-size:22px;min-width:40px;text-align:center">${scanQty}</b><button class="btn alt" data-sq="1">+</button></div>
+    <div class="sum"><span class="mute">Line total</span><b>${money(p.selling_price * scanQty)} ${CUR}</b></div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-sadd="1" autofocus>Add to cart</button><button class="btn alt" data-scancel="1">Cancel</button></div>`);
+}
+function unknownPopup(code) {
+  scanBusy = true; beep(220, 0.25);
+  const alts = products.filter(i => i.active !== false && near(i.barcode, code)).slice(0, 5);
+  scanShow(`<h2 style="font-size:18px">Barcode not registered</h2><div class="bad" style="margin:4px 0 8px">Read: <b>${h(code)}</b></div>
+    ${alts.length ? `<div class="warn" style="margin-bottom:6px">Did the camera misread it? Closest registered items:</div>` + alts.map(i => `<div class="row">${thumb(i, 36)}<span style="flex:1">${h(i.name)}<div class="mute">${h(i.barcode)} · ${money(i.selling_price)}</div></span><button class="btn sm" data-spick="${i.id}">This one</button></div>`).join('')
+      : '<div class="mute">No similar barcode found. Register this item under Items, or try again closer and in better light.</div>'}
+    <div class="row" style="margin-top:8px"><button class="btn alt" data-scancel="1">Close</button></div>`);
+}
+$('scanBody').onclick = e => {
+  const d = e.target.dataset;
+  if (d.sq) { scanQty += +d.sq; renderScanItem(); }
+  if (d.sadd) { for (let i = 0; i < scanQty; i++) addToCart(scanItem); toast(`✔ ${scanQty} × ${scanItem.name} added to cart`); $('scanDlg').close(); }
+  if (d.scancel) $('scanDlg').close();
+  if (d.spick) { scanBusy = true; scanItem = products.find(x => x.id === d.spick); scanQty = 1; renderScanItem(); }
+};
+$('scanDlg').onclose = () => { scanBusy = false; };
 const sellScan = makeScanner({ mount: 'sellCam', prefix: 'sell', btn: 'camBtn', startLabel: '📷 Use camera',
-  onStart: () => { document.querySelector('input[name=mode][value=add]').checked = true; sellScan.say('Camera ready — items are ADDED to the cart as you scan (switch to Price check to only look). Hold the barcode flat inside the box.'); },
-  onText: (text, flash) => {
+  onStart: () => sellScan.say('Camera ready — hold the barcode flat inside the box. A pop-up will ask you to confirm each item before it goes in the cart.'),
+  onText: text => {
     if (!products.length) return lookup(text);
     const code = text.trim(), vs = variants(code), p = products.find(i => vs.includes(i.barcode));
-    if (!p) {
-      const now = Date.now(); if (unknown.code !== code || now - unknown.t > 6000) { unknown = { code, t: now }; return; } // misread guard: needs a second sighting
-      beep(220, 0.25); flash(false, `Not registered: ${code}`);
-      $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">✖ Barcode “${h(code)}” is not registered.</div><div class="mute">Register it under Items (use the 📷 Scan button next to Barcode).</div>`; return;
-    }
-    const mode = document.querySelector('input[name=mode]:checked').value;
-    if (p.active === false) { beep(220, 0.2); return flash(false, `${p.name} is hidden`); }
-    if (mode === 'add') {
-      const have = cart.find(c => c.p.id === p.id)?.q || 0;
-      if (p.stock_quantity <= 0) { beep(220, 0.25); return flash(false, `${p.name} — out of stock`); }
-      if (have + 1 > p.stock_quantity) { beep(220, 0.25); return flash(false, `Only ${p.stock_quantity} of ${p.name} in stock`); }
-      addToCart(p); beep(); flash(true, `+1 ${p.name} · ${money(p.selling_price)} ${CUR}`);
-    } else { showCheck(p); beep(); flash(true, `${p.name} · ${money(p.selling_price)} ${CUR} · ${p.stock_quantity} left`); }
+    if (p) { beep(); return confirmItem(p); }
+    unknownPopup(code);
   } });
 // Registering an item: scan the barcode straight into the form so it matches exactly at the till.
-const formScan = makeScanner({ mount: 'formCam', prefix: 'form', btn: 'pScan', startLabel: '📷 Scan',
+const formScan = makeScanner({ mount: 'formCam', prefix: 'form', btn: 'pScan', startLabel: '📷 Scan', need: 3,
   onText: (text, flash) => {
     const code = text.trim(), dup = products.find(i => i.barcode === code && i.id !== $('pId').value);
     $('pBarcode').value = code; beep();
@@ -603,7 +643,7 @@ $('camFile').onchange = async () => {
   const f = $('camFile').files[0]; if (!f) return;
   sellScan.say('Reading photo…');
   try {
-    const F = Html5QrcodeSupportedFormats, sc = new Html5Qrcode('camTmp', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], verbose: false });
+    const F = Html5QrcodeSupportedFormats, sc = new Html5Qrcode('camTmp', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.QR_CODE], verbose: false });
     const text = await sc.scanFile(f, false); try { sc.clear(); } catch {}
     sellScan.say('Read: ' + text); lookup(text);
   } catch { sellScan.say('No barcode found in that photo — move closer, keep it sharp and well lit, and fill the frame with the bars.', true); }
