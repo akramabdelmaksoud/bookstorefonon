@@ -54,6 +54,8 @@
   .banner { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 14px; border-radius:12px; margin-bottom:16px; border:1px solid var(--line); background:var(--card); }
   .th { width:40px; height:40px; object-fit:cover; border-radius:8px; background:var(--line); flex:0 0 auto; vertical-align:middle; }
   .ph { display:inline-flex; align-items:center; justify-content:center; font-size:18px; }
+  .scanFlash { position:absolute; left:8px; right:8px; bottom:8px; padding:10px 12px; border-radius:10px; font-weight:600; color:#fff; z-index:3; pointer-events:none; }
+  .scanFlash.good { background:rgba(31,122,61,.93); } .scanFlash.badc { background:rgba(179,38,30,.93); }
   .sum { display:flex; justify-content:space-between; padding:2px 0; }
 </style>
 </head>
@@ -98,8 +100,7 @@
               <label><input type="radio" name="mode" value="add"> Add to cart</label>
             </div>
             <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><label class="btn alt" style="cursor:pointer">🖼 Scan from photo<input id="camFile" type="file" accept="image/*" capture="environment" style="display:none"></label><button class="btn alt" id="nameBtn">🔎 Search by name / brand</button></div>
-            <div id="camBox" class="hidden" style="width:100%;margin-bottom:8px"></div>
-            <div id="camMsg" class="mute" style="margin-bottom:8px"></div>
+            <div id="sellCam"></div>
             <div id="camTmp" style="position:absolute;left:-9999px;width:300px;height:300px"></div>
             <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Part of a name, brand or shelf…" autocomplete="off"><div id="nameRes"></div></div>
           </div>
@@ -132,7 +133,8 @@
       <div class="card adm hidden" id="addCard">
         <h2 id="formTitle">Add item</h2>
         <input type="hidden" id="pId">
-        <div class="row"><input id="pName" type="text" placeholder="Item name" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode" style="flex:1"></div>
+        <div class="row"><input id="pName" type="text" placeholder="Item name" style="flex:2"><input id="pBarcode" type="text" placeholder="Barcode" style="flex:1"><button class="btn alt" id="pScan" type="button" title="Scan the barcode with the camera">📷 Scan</button></div>
+        <div id="formCam"></div>
         <div class="row"><input id="pAuthor" type="text" placeholder="Brand"><input id="pPublisher" type="text" placeholder="Size / model / details"><input id="pShelf" type="text" placeholder="Shelf / location"></div>
         <div class="row">
           <input id="pBuy" type="number" step="0.01" min="0" placeholder="Purchase price">
@@ -510,44 +512,101 @@ function printHtml(html) {
   f.onload = () => { f.contentWindow.print(); setTimeout(() => f.remove(), 30000); };
   document.body.appendChild(f);
 }
-// Camera scanning: html5-qrcode works in every modern browser (uses the native BarcodeDetector when present).
-let scanner = null, lastScan = '', lastAt = 0;
-async function stopCam() {
-  $('camMsg').textContent = '';
-  const sc = scanner; scanner = null; $('camBox').classList.add('hidden'); $('camBtn').textContent = '📷 Use camera';
-  if (sc) { try { await sc.stop(); } catch {} try { sc.clear(); } catch {} }
+// ---- Camera scanning (html5-qrcode; native BarcodeDetector when available) ----
+const scanners = [];
+const stopCam = () => scanners.forEach(x => x.stop());
+let actx = null;
+const beep = (f = 880, d = 0.09) => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = f; g.gain.value = 0.15; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + d); } catch {} };
+function makeScanner({ mount, prefix: x, btn, startLabel, onStart, onText }) {
+  $(mount).innerHTML = `<div style="position:relative"><div id="${x}Box" class="hidden" style="width:100%"></div><div id="${x}Flash" class="scanFlash hidden"></div></div>
+    <div id="${x}Tools" class="row hidden" style="margin-top:6px"><button class="btn alt sm hidden" id="${x}Torch" type="button">🔦 Light</button><input id="${x}Zoom" class="hidden" type="range" style="max-width:220px" title="Zoom"></div>
+    <div id="${x}Msg" class="mute" style="margin:6px 0"></div>`;
+  let sc = null, lastText = '', lastAt = 0, ft;
+  const say = (t, bad) => { $(x + 'Msg').className = bad ? 'bad' : 'mute'; $(x + 'Msg').textContent = t; };
+  const flash = (ok, text) => { const f = $(x + 'Flash'); f.textContent = text; f.className = 'scanFlash ' + (ok ? 'good' : 'badc'); clearTimeout(ft); ft = setTimeout(() => f.classList.add('hidden'), 1600); };
+  const api = {
+    say,
+    async stop() {
+      const s0 = sc; sc = null; $(x + 'Box').classList.add('hidden'); $(x + 'Tools').classList.add('hidden'); $(x + 'Flash').classList.add('hidden');
+      $(btn).textContent = startLabel; say('');
+      if (s0) { try { await s0.stop(); } catch {} try { s0.clear(); } catch {} }
+    },
+    async toggle() {
+      if (sc) return api.stop();
+      if (typeof Html5Qrcode === 'undefined') return toast('Scanner library did not load. Check your connection and reload.');
+      if (!window.isSecureContext) return toast('Camera needs a secure (https) page.');
+      scanners.forEach(o => o !== api && o.stop());
+      beep(1, 0.001); // unlock audio inside the click
+      const F = Html5QrcodeSupportedFormats;
+      $(x + 'Box').classList.remove('hidden'); $(btn).textContent = '✖ Stop camera'; say('Starting camera… allow access if the browser asks.');
+      const s1 = new Html5Qrcode(x + 'Box', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], useBarCodeDetectorIfSupported: true, verbose: false });
+      sc = s1;
+      const cfg = { fps: 15, disableFlip: true, qrbox: (w, h) => ({ width: Math.floor(w * 0.92), height: Math.floor(Math.min(h * 0.55, 200)) }) };
+      const onOk = text => { const now = Date.now(); if (text === lastText && now - lastAt < 1500) return; lastText = text; lastAt = now; if (navigator.vibrate) navigator.vibrate(50); onText(text, flash); };
+      try {
+        try {
+          await s1.start({ facingMode: 'environment' }, { ...cfg, videoConstraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' }] } }, onOk, () => {});
+        } catch (e) {
+          if (!/Overconstrained|Constraint/i.test(String(e?.name || e))) throw e;
+          await s1.start({ facingMode: 'environment' }, cfg, onOk, () => {});
+        }
+        say('Camera ready — hold the barcode flat inside the box, 15–25 cm away, in good light. It scans by itself.');
+        if (onStart) onStart();
+        try {
+          const caps = s1.getRunningTrackCameraCapabilities(), t = caps.torchFeature(), z = caps.zoomFeature(); let any = false, on = false;
+          if (t.isSupported()) { any = true; $(x + 'Torch').classList.remove('hidden'); $(x + 'Torch').onclick = async () => { on = !on; try { await t.apply(on); } catch {} }; }
+          if (z.isSupported()) { any = true; const r = $(x + 'Zoom'); r.min = z.min(); r.max = Math.min(z.max(), 4); r.step = z.step() || 0.1; r.value = z.min(); r.classList.remove('hidden'); r.oninput = () => z.apply(+r.value); }
+          $(x + 'Tools').classList.toggle('hidden', !any);
+        } catch {}
+      } catch (e) {
+        sc = null; $(x + 'Box').classList.add('hidden'); $(btn).textContent = startLabel;
+        const m = String(e?.name || e);
+        const msg = /NotAllowed|Permission/i.test(m) ? 'Camera blocked — allow camera access for this site in the browser settings, then try again. Or use “Scan from photo”.'
+          : /NotFound|Devices/i.test(m) ? 'No camera found on this device. Use “Scan from photo”, type the barcode, or use a scanner.' : 'Camera unavailable: ' + (e?.message || e) + ' — try “Scan from photo”.';
+        say(msg, true); toast(msg);
+      }
+    },
+  };
+  scanners.push(api); $(btn).onclick = () => api.toggle();
+  return api;
 }
-$('camBtn').onclick = async () => {
-  if (scanner) return stopCam();
-  if (typeof Html5Qrcode === 'undefined') return toast('Scanner library did not load. Check your connection and reload.');
-  if (!window.isSecureContext) return toast('Camera needs a secure (https) page.');
-  const F = Html5QrcodeSupportedFormats;
-  $('camBox').classList.remove('hidden'); $('camBtn').textContent = '✖ Stop camera'; $('camMsg').className = 'mute'; $('camMsg').textContent = 'Starting camera… allow access if the browser asks.';
-  const sc = new Html5Qrcode('camBox', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], useBarCodeDetectorIfSupported: true, verbose: false });
-  scanner = sc;
-  try {
-    await sc.start({ facingMode: 'environment' }, { fps: 10, qrbox: (w, h) => ({ width: Math.floor(Math.min(w, 360) * 0.9), height: Math.floor(Math.min(h, 220) * 0.6) }) }, text => {
-      if (text === lastScan && Date.now() - lastAt < 2000) return;
-      lastScan = text; lastAt = Date.now(); lookup(text);
-    }, () => {});
-    $('camMsg').textContent = 'Camera ready — hold the barcode flat inside the box, about 15–25 cm away, in good light.';
-  } catch (e) {
-    scanner = null; $('camBox').classList.add('hidden'); $('camBtn').textContent = '📷 Use camera';
-    const m = String(e?.name || e);
-    const msg = /NotAllowed|Permission/i.test(m) ? 'Camera blocked — allow camera access for this site in the browser settings, then try again. Or use “Scan from photo”.'
-      : /NotFound|Devices/i.test(m) ? 'No camera found on this device. Use “Scan from photo”, type the barcode, or use a scanner.' : 'Camera unavailable: ' + (e?.message || e) + ' — try “Scan from photo”.';
-    $('camMsg').className = 'bad'; $('camMsg').textContent = msg; toast(msg);
-  }
-};
-
+// Selling: look the code up in the already-loaded item list (instant), add or price-check, beep.
+let unknown = { code: '', t: 0 };
+const sellScan = makeScanner({ mount: 'sellCam', prefix: 'sell', btn: 'camBtn', startLabel: '📷 Use camera',
+  onStart: () => { document.querySelector('input[name=mode][value=add]').checked = true; sellScan.say('Camera ready — items are ADDED to the cart as you scan (switch to Price check to only look). Hold the barcode flat inside the box.'); },
+  onText: (text, flash) => {
+    if (!products.length) return lookup(text);
+    const code = text.trim(), vs = variants(code), p = products.find(i => vs.includes(i.barcode));
+    if (!p) {
+      const now = Date.now(); if (unknown.code !== code || now - unknown.t > 6000) { unknown = { code, t: now }; return; } // misread guard: needs a second sighting
+      beep(220, 0.25); flash(false, `Not registered: ${code}`);
+      $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">✖ Barcode “${h(code)}” is not registered.</div><div class="mute">Register it under Items (use the 📷 Scan button next to Barcode).</div>`; return;
+    }
+    const mode = document.querySelector('input[name=mode]:checked').value;
+    if (p.active === false) { beep(220, 0.2); return flash(false, `${p.name} is hidden`); }
+    if (mode === 'add') {
+      const have = cart.find(c => c.p.id === p.id)?.q || 0;
+      if (p.stock_quantity <= 0) { beep(220, 0.25); return flash(false, `${p.name} — out of stock`); }
+      if (have + 1 > p.stock_quantity) { beep(220, 0.25); return flash(false, `Only ${p.stock_quantity} of ${p.name} in stock`); }
+      addToCart(p); beep(); flash(true, `+1 ${p.name} · ${money(p.selling_price)} ${CUR}`);
+    } else { showCheck(p); beep(); flash(true, `${p.name} · ${money(p.selling_price)} ${CUR} · ${p.stock_quantity} left`); }
+  } });
+// Registering an item: scan the barcode straight into the form so it matches exactly at the till.
+const formScan = makeScanner({ mount: 'formCam', prefix: 'form', btn: 'pScan', startLabel: '📷 Scan',
+  onText: (text, flash) => {
+    const code = text.trim(), dup = products.find(i => i.barcode === code && i.id !== $('pId').value);
+    $('pBarcode').value = code; beep();
+    flash(!dup, dup ? `Already used by “${dup.name}”` : `Barcode captured: ${code}`);
+    if (!dup) { formScan.stop(); toast('Barcode captured: ' + code); }
+  } });
 $('camFile').onchange = async () => {
   const f = $('camFile').files[0]; if (!f) return;
-  $('camMsg').className = 'mute'; $('camMsg').textContent = 'Reading photo…';
+  sellScan.say('Reading photo…');
   try {
     const F = Html5QrcodeSupportedFormats, sc = new Html5Qrcode('camTmp', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], verbose: false });
     const text = await sc.scanFile(f, false); try { sc.clear(); } catch {}
-    $('camMsg').textContent = 'Read: ' + text; lookup(text);
-  } catch { $('camMsg').className = 'bad'; $('camMsg').textContent = 'No barcode found in that photo — move closer, keep it sharp and well lit, and fill the frame with the bars.'; }
+    sellScan.say('Read: ' + text); lookup(text);
+  } catch { sellScan.say('No barcode found in that photo — move closer, keep it sharp and well lit, and fill the frame with the bars.', true); }
   $('camFile').value = '';
 };
 
