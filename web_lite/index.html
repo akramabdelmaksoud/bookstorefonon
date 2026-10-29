@@ -92,17 +92,19 @@
         <div>
           <div class="card">
             <h2>Scan or type a barcode</h2>
-            <div class="row"><input id="code" type="text" placeholder="Scan or type barcode, then Enter" autofocus autocomplete="off"></div>
+            <div class="row"><input id="code" type="text" placeholder="Scan or type barcode / name, then Enter" autofocus autocomplete="off"><button class="btn" id="codeGo">Search</button></div>
             <div class="row">
               <label><input type="radio" name="mode" value="check" checked> Price check <span class="mute">(cart untouched)</span></label>
               <label><input type="radio" name="mode" value="add"> Add to cart</label>
             </div>
-            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><button class="btn alt" id="nameBtn">🔎 Search by name / brand</button></div>
+            <div class="row"><button class="btn alt" id="camBtn">📷 Use camera</button><label class="btn alt" style="cursor:pointer">🖼 Scan from photo<input id="camFile" type="file" accept="image/*" capture="environment" style="display:none"></label><button class="btn alt" id="nameBtn">🔎 Search by name / brand</button></div>
             <div id="camBox" class="hidden" style="width:100%;margin-bottom:8px"></div>
+            <div id="camMsg" class="mute" style="margin-bottom:8px"></div>
+            <div id="camTmp" style="position:absolute;left:-9999px;width:300px;height:300px"></div>
             <div id="nameBox" class="hidden"><input id="nameQ" type="text" placeholder="Part of a name, brand or shelf…" autocomplete="off"><div id="nameRes"></div></div>
           </div>
-          <div class="card"><h2>Browse by category</h2><div id="catChips" class="row"></div><div id="catItems"></div></div>
           <div class="card" id="checkCard"><h2>Price check</h2><div class="mute">Scan an item to see its price, stock and shelf. Your cart is never changed by a price check.</div></div>
+          <div class="card"><h2>Browse by category</h2><div id="catChips" class="row"></div><div id="catItems"></div></div>
         </div>
         <div class="card">
           <h2>Cart</h2>
@@ -384,16 +386,34 @@ $('catChips').onclick = e => {
   $('catItems').innerHTML = list.length ? list.map(p => `<div class="row">${thumb(p, 36)}<span style="flex:1">${h(p.name)} <span class="mute">${h(sub(p))} · ${money(p.selling_price)} · ${p.stock_quantity} left${p.shelf ? ' · ' + h(p.shelf) : ''}</span></span><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('') : '<div class="mute">Nothing in this category yet</div>';
 };
 $('catItems').onclick = e => { const a = e.target.dataset.add; if (a) addToCart(products.find(p => p.id === a)); };
+const variants = c => { const v = new Set([c]); if (/^\d{12}$/.test(c)) v.add('0' + c); if (/^0\d{12}$/.test(c)) v.add(c.slice(1)); return [...v]; };
+const seen = () => $('checkCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 async function lookup(code) {
-  code = code.trim(); if (!code) return;
-  const { data, error } = await sb.from('products').select('*').eq('barcode', code).maybeSingle();
+  code = (code || '').trim(); if (!code) return;
+  const { data: rows, error } = await sb.from('products').select('*').in('barcode', variants(code)).limit(1);
   if (error) return fail(error, 'Lookup failed');
-  const mode = document.querySelector('input[name=mode]:checked').value;
-  if (!data) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">No item with barcode ${h(code)}</div>`; if (mode === 'add') toast('Unknown barcode ' + code); return; }
-  if (data.active === false) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">${h(data.name)} is hidden and not for sale</div>`; return; }
-  if (mode === 'add') return addToCart(data);
-  showCheck(data);
+  const data = rows && rows[0], mode = document.querySelector('input[name=mode]:checked').value;
+  if (navigator.vibrate) navigator.vibrate(60);
+  if (!data) {
+    const q = code.toLowerCase(), r = products.filter(p => p.active !== false && matches(p, q)).slice(0, 8);
+    if (r.length) {
+      $('checkCard').innerHTML = `<h2>Price check</h2><div class="warn">No exact barcode “${h(code)}” — ${r.length} similar item${r.length > 1 ? 's' : ''}:</div>` + r.map(p => `<div class="row">${thumb(p, 36)}<span style="flex:1">${h(p.name)} <span class="mute">${h(sub(p))} · ${money(p.selling_price)} · ${p.stock_quantity} left</span></span><button class="btn alt sm" data-chk="${p.id}">Check</button><button class="btn sm" data-add="${p.id}" ${p.stock_quantity <= 0 ? 'disabled' : ''}>Add</button></div>`).join('');
+      toast(`No exact match for ${code} — showing similar items`);
+    } else {
+      $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">✖ Nothing found for “${h(code)}”.</div><div class="mute">If this is a new item, register it under Items (the barcode is saved with it).</div>`;
+      toast('✖ Nothing found for ' + code);
+    }
+    return seen();
+  }
+  if (data.active === false) { $('checkCard').innerHTML = `<h2>Price check</h2><div class="bad">${h(data.name)} is hidden and not for sale</div>`; toast(data.name + ' is hidden'); return seen(); }
+  if (mode === 'add') { addToCart(data); toast(`✔ ${data.name} added to cart`); return; }
+  showCheck(data); toast(`${data.name} — ${money(data.selling_price)} ${CUR}`); seen();
 }
+$('checkCard').onclick = e => {
+  const c = e.target.dataset.chk, a = e.target.dataset.add;
+  if (c) showCheck(products.find(p => p.id === c)); if (a) addToCart(products.find(p => p.id === a));
+};
+$('codeGo').onclick = () => { lookup($('code').value); $('code').value = ''; $('code').focus(); };
 function showCheck(p) {
   const out = p.stock_quantity <= 0;
   $('checkCard').innerHTML = `<h2>Price check</h2>${p.cover_url ? `<img src="${h(p.cover_url)}" alt="" style="width:100%;max-height:200px;object-fit:contain;border-radius:10px;background:var(--bg);margin-bottom:6px">` : ''}<div><b>${h(p.name)}</b></div><div class="mute">${h(sub(p))}${p.shelf ? ' · Shelf ' + h(p.shelf) : ''}</div><div class="big">${money(p.selling_price)} ${CUR}</div>
@@ -493,6 +513,7 @@ function printHtml(html) {
 // Camera scanning: html5-qrcode works in every modern browser (uses the native BarcodeDetector when present).
 let scanner = null, lastScan = '', lastAt = 0;
 async function stopCam() {
+  $('camMsg').textContent = '';
   const sc = scanner; scanner = null; $('camBox').classList.add('hidden'); $('camBtn').textContent = '📷 Use camera';
   if (sc) { try { await sc.stop(); } catch {} try { sc.clear(); } catch {} }
 }
@@ -501,7 +522,7 @@ $('camBtn').onclick = async () => {
   if (typeof Html5Qrcode === 'undefined') return toast('Scanner library did not load. Check your connection and reload.');
   if (!window.isSecureContext) return toast('Camera needs a secure (https) page.');
   const F = Html5QrcodeSupportedFormats;
-  $('camBox').classList.remove('hidden'); $('camBtn').textContent = '✖ Stop camera';
+  $('camBox').classList.remove('hidden'); $('camBtn').textContent = '✖ Stop camera'; $('camMsg').className = 'mute'; $('camMsg').textContent = 'Starting camera… allow access if the browser asks.';
   const sc = new Html5Qrcode('camBox', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], useBarCodeDetectorIfSupported: true, verbose: false });
   scanner = sc;
   try {
@@ -509,12 +530,25 @@ $('camBtn').onclick = async () => {
       if (text === lastScan && Date.now() - lastAt < 2000) return;
       lastScan = text; lastAt = Date.now(); lookup(text);
     }, () => {});
+    $('camMsg').textContent = 'Camera ready — hold the barcode flat inside the box, about 15–25 cm away, in good light.';
   } catch (e) {
     scanner = null; $('camBox').classList.add('hidden'); $('camBtn').textContent = '📷 Use camera';
     const m = String(e?.name || e);
-    toast(/NotAllowed|Permission/i.test(m) ? 'Camera blocked — allow camera access for this site in the browser settings, then try again.'
-      : /NotFound|Devices/i.test(m) ? 'No camera found on this device. Type the barcode or use a scanner.' : 'Camera unavailable: ' + (e?.message || e));
+    const msg = /NotAllowed|Permission/i.test(m) ? 'Camera blocked — allow camera access for this site in the browser settings, then try again. Or use “Scan from photo”.'
+      : /NotFound|Devices/i.test(m) ? 'No camera found on this device. Use “Scan from photo”, type the barcode, or use a scanner.' : 'Camera unavailable: ' + (e?.message || e) + ' — try “Scan from photo”.';
+    $('camMsg').className = 'bad'; $('camMsg').textContent = msg; toast(msg);
   }
+};
+
+$('camFile').onchange = async () => {
+  const f = $('camFile').files[0]; if (!f) return;
+  $('camMsg').className = 'mute'; $('camMsg').textContent = 'Reading photo…';
+  try {
+    const F = Html5QrcodeSupportedFormats, sc = new Html5Qrcode('camTmp', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE], verbose: false });
+    const text = await sc.scanFile(f, false); try { sc.clear(); } catch {}
+    $('camMsg').textContent = 'Read: ' + text; lookup(text);
+  } catch { $('camMsg').className = 'bad'; $('camMsg').textContent = 'No barcode found in that photo — move closer, keep it sharp and well lit, and fill the frame with the bars.'; }
+  $('camFile').value = '';
 };
 
 // ---------- items & categories ----------
